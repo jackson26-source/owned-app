@@ -2,9 +2,9 @@
 
 Tracks what you bought — return window, warranty, and eventually shipping — without you having to remember any of it yourself. See the full research and decision trail in the `claude/macless-app-ideas-2026-08-23.md` doc in the Macless/Citolex project for why this exists and what it's up against.
 
-## Status: Phase 1, first commit, not yet built on a real runner
+## Status: Phase 1 builds clean on a real macOS runner; TestFlight plumbing is in place, waiting on Apple Developer Portal setup
 
-Everything in this repo was written in a Linux sandbox with no Xcode, no Swift compiler, and no Mac — same premise as Macless itself. That means none of this Swift code has been compiled or run yet. The first GitHub Actions run of `simulator-build.yml` is the real test, not this commit message. Treat a red CI run as the expected first step, not a sign anything is fundamentally wrong — fix forward from whatever the actual build log says.
+Everything in this repo was written in a Linux sandbox with no Xcode, no Swift compiler, and no Mac — same premise as Macless itself. `simulator-build.yml` is green (first real proof the `.iOSApplication` manifest is valid). `testflight.yml` is written and ready, mirroring the proven `ios-testflight.yml` pattern from the appledev (Citolex) repo, but it needs a one-time manual setup before it can actually reach TestFlight — see `TESTFLIGHT.md`. That setup is Apple Developer Portal / App Store Connect work that has to be done by a human with account access, not something any Claude session can do.
 
 ## Why a Swift Package instead of an .xcodeproj
 
@@ -44,17 +44,20 @@ Sources/OwnedApp/
   Services/WalletPassService.swift    — Wallet add flow (signing stub, see above)
   Views/                        — SwiftUI screens
   Resources/Assets.xcassets/    — app icon (a placeholder, not final art) + accent color
-.github/workflows/simulator-build.yml — CI: builds for iOS Simulator, no signing needed
+.github/workflows/simulator-build.yml — CI: builds for iOS Simulator, no signing needed. Green.
+.github/workflows/testflight.yml      — CI: builds, signs, archives, and uploads to TestFlight. Written and ready, needs the one-time setup in TESTFLIGHT.md before it can succeed.
+TESTFLIGHT.md                  — the one-time manual Apple Developer Portal / App Store Connect setup testflight.yml depends on. Read this to actually get a build into TestFlight.
 ```
 
 ## Naming and domain
 
-App name: **Owned**. Checked against the App Store and couldn't find an existing app using it, unlike five other candidates tried first (Backpocket collides with an active Levi's retail app, among others — full trail in the app-ideas doc). `getowned.app` looked unregistered as of this writing; worth confirming directly at registration time rather than trusting a DNS probe as final word. Bundle identifier is currently a placeholder (`dev.macless.owned`) — update it in `Package.swift` if the final domain/bundle scheme differs.
+App name: **Owned**. Checked against the App Store and couldn't find an existing app using it, unlike five other candidates tried first (Backpocket collides with an active Levi's retail app, among others — full trail in the app-ideas doc). `getowned.app` looked unregistered as of this writing; worth confirming directly at registration time rather than trusting a DNS probe as final word. Bundle identifier is `dev.macless.owned` (set in `Package.swift`; the real Team ID is injected at CI build time from a GitHub secret rather than hardcoded — see `testflight.yml`).
 
 ## Next steps, roughly in order
 
-1. Get `simulator-build.yml` green on a real runner — fix whatever the `.iOSApplication` manifest gets wrong on the first real Xcode pass.
-2. Add real app icon artwork (current one is a generated placeholder, not final design).
-3. Decide on and register the actual bundle identifier + Apple Developer Team ID, replacing the placeholders in `Package.swift`.
-4. Add a TestFlight signing workflow once Jackson has added the necessary certificates as GitHub secrets — same pattern as the existing Macless product workflows, not something to improvise from scratch.
-5. Scope and start Phase 2 (email auto-import), starting with Amazon specifically given assumed order volume.
+1. ~~Get `simulator-build.yml` green on a real runner.~~ **Done.**
+2. ~~Write the TestFlight build/sign/upload workflow.~~ **Done — see `testflight.yml` and `TESTFLIGHT.md`.**
+3. **Do the one-time manual setup in `TESTFLIGHT.md`** (register the App ID, create one provisioning profile, register the app in App Store Connect, add 7 GitHub secrets — most reused directly from the existing Citolex setup). This is the actual next blocker, and it's Jackson's step, not something further automatable from this sandbox.
+4. Add real app icon artwork (current one is a generated placeholder, not final design) — deprioritized per Jackson, not blocking TestFlight.
+5. Once a build lands in TestFlight, add an internal testing group in App Store Connect and confirm the build actually installs and runs on a real device — that's the first true end-to-end validation.
+6. Scope and start Phase 2 (email auto-import), starting with Amazon specifically given assumed order volume.
