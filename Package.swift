@@ -1,5 +1,6 @@
 // swift-tools-version: 5.9
 import PackageDescription
+import AppleProductTypes
 
 // NOTE for whoever picks this up: this project is defined as a Swift Package
 // with an .iOSApplication product instead of a traditional .xcodeproj.
@@ -13,38 +14,38 @@ import PackageDescription
 // expected first fix, not a sign the whole approach is wrong.
 
 let package = Package(
-      name: "Owned",
-      platforms: [
-                .iOS(.v17)
-      ],
-      products: [
-                .iOSApplication(
-                              name: "Owned",
-                              targets: ["OwnedApp"],
-                              bundleIdentifier: "dev.macless.owned",
-                              teamIdentifier: "REPLACE_WITH_APPLE_TEAM_ID",
-                              displayVersion: "0.1.0",
-                              bundleVersion: "1",
-                              appIcon: .asset("AppIcon"),
-                              accentColor: .asset("AccentColor"),
-                              supportedDeviceFamilies: [
-                                                .phone
-                              ],
-                              supportedInterfaceOrientations: [
-                                                .portrait
-                              ],
-                              capabilities: [
-                                                .camera(purposeString: "Owned uses your camera to scan receipts so you don't have to type in the details by hand.")
-                              ]
-                )
-      ],
-      targets: [
-                .executableTarget(
-                              name: "OwnedApp",
-                              path: "Sources/OwnedApp",
-                              resources: [
-                                                .process("Resources/Assets.xcassets")
-                              ]
-                )
-      ]
+    name: "Owned",
+    platforms: [
+        .iOS(.v17)
+    ],
+    products: [
+        .iOSApplication(
+            name: "Owned",
+            targets: ["OwnedApp"],
+            bundleIdentifier: "dev.macless.owned",
+            teamIdentifier: "REPLACE_WITH_APPLE_TEAM_ID",
+            displayVersion: "0.1.0",
+            bundleVersion: "1",
+            appIcon: .asset("AppIcon"),
+            accentColor: .asset("AccentColor"),
+            supportedDeviceFamilies: [
+                .phone
+            ],
+            supportedInterfaceOrientations: [
+                .portrait
+            ],
+            capabilities: [
+                .camera(purposeString: "Owned uses your camera to scan receipts so you don't have to type in the details by hand.")
+            ]
+        )
+    ],
+    targets: [
+        .executableTarget(
+            name: "OwnedApp",
+            path: "Sources/OwnedApp",
+            resources: [
+                .process("Resources/Assets.xcassets")
+            ]
+        )
+    ]
 )
