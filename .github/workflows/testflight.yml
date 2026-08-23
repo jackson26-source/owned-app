@@ -145,6 +145,21 @@ jobs:
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             archive
 
+      - name: Inspect archive metadata
+        run: |
+          echo "----- archive Info.plist (full) -----"
+          /usr/libexec/PlistBuddy -c "Print" "$RUNNER_TEMP/Owned.xcarchive/Info.plist" || echo "FAILED TO READ ARCHIVE Info.plist"
+          echo "----- embedded.mobileprovision inside the archived .app (decoded) -----"
+          APP_PATH=$(find "$RUNNER_TEMP/Owned.xcarchive/Products/Applications" -maxdepth 1 -name "*.app" | head -n 1)
+          echo "App path: $APP_PATH"
+          if [ -n "$APP_PATH" ] && [ -f "$APP_PATH/embedded.mobileprovision" ]; then
+            security cms -D -i "$APP_PATH/embedded.mobileprovision" > "$RUNNER_TEMP/embedded_profile.plist" 2>/dev/null && /usr/libexec/PlistBuddy -c "Print" "$RUNNER_TEMP/embedded_profile.plist" || echo "FAILED TO DECODE embedded.mobileprovision"
+          else
+            echo "No embedded.mobileprovision found in the archived .app"
+          fi
+          echo "----- codesign -dvvv on the archived .app -----"
+          codesign -dvvv "$APP_PATH" || echo "codesign inspection failed"
+
       - name: Write export options
         run: |
           cat > "$RUNNER_TEMP/ExportOptions.plist" << EOF
