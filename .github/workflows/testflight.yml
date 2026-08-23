@@ -1,7 +1,7 @@
 name: Build and upload Owned to TestFlight
 
 # Runs entirely on GitHub's free-for-public-repos macOS runners (this repo is
-# private, so it uses the account's macOS minutes instead â same runner,
+# private, so it uses the account's macOS minutes instead — same runner,
 # same behavior). Triggers on every push to main; you can also run it by
 # hand from the Actions tab (workflow_dispatch).
 #
@@ -46,7 +46,7 @@ jobs:
       # ---- Code signing: everything below reads from GitHub Actions
       # secrets you set once in this repo's Settings > Secrets and
       # variables > Actions. See TESTFLIGHT.md for how to generate each of
-      # these â several can be reused directly from the appledev (Citolex)
+      # these — several can be reused directly from the appledev (Citolex)
       # repo's own secrets, since they're account-level, not app-level.
       - name: Import signing certificate + provisioning profile
         env:
