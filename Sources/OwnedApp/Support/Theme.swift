@@ -57,6 +57,14 @@ enum Theme {
         dark: UIColor(red: 0.831, green: 0.408, blue: 0.243, alpha: 1)   // #D4683E
     )
 
+    /// Text drawn on top of a solid `accent` fill (the pill button label,
+    /// for example) — cream rather than pure white so it stays consistent
+    /// with the warm, slightly off-white palette everywhere else.
+    static let onAccent = Color(
+        light: UIColor(red: 0.980, green: 0.973, blue: 0.953, alpha: 1),
+        dark: UIColor(red: 0.086, green: 0.078, blue: 0.067, alpha: 1)
+    )
+
     // MARK: - Type
 
     /// The homepage sets headlines in Georgia; Georgia ships as a system
@@ -70,6 +78,42 @@ enum Theme {
     /// kicker text (e.g. "A PURCHASE TRACKER, NOT A SHOPPING APP").
     static func eyebrow(_ size: CGFloat = 12) -> Font {
         .system(size: size, weight: .semibold, design: .monospaced)
+    }
+
+    /// A styled section header for List/Form sections — small monospace
+    /// eyebrow type in the faint text color, instead of the default
+    /// system gray all-caps section header. Pass a plain-case title;
+    /// List/Form section headers uppercase their content automatically.
+    static func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(Theme.eyebrow(11))
+            .tracking(0.6)
+            .foregroundStyle(Theme.textFaint)
+    }
+
+    // MARK: - Buttons
+
+    /// The app's primary button style: a solid accent-colored pill,
+    /// standing in for iOS's default `.bordered`/`.borderedProminent`
+    /// blue-tinted buttons so primary actions read as this app's own
+    /// design rather than a stock system control. Pass `isProminent:
+    /// false` for a lighter, outline-only secondary variant.
+    struct PillButtonStyle: ButtonStyle {
+        var isProminent: Bool = true
+
+        func makeBody(configuration: Configuration) -> some View {
+            configuration.label
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 18)
+                .padding(.vertical, 10)
+                .background(isProminent ? Theme.accent : Theme.panel)
+                .foregroundStyle(isProminent ? Theme.onAccent : Theme.accent)
+                .overlay(
+                    Capsule().stroke(isProminent ? Color.clear : Theme.accent, lineWidth: 1)
+                )
+                .clipShape(Capsule())
+                .opacity(configuration.isPressed ? 0.75 : 1)
+        }
     }
 
     // MARK: - App-wide chrome
@@ -106,6 +150,25 @@ enum Theme {
         UITabBar.appearance().tintColor = accentColor
 
         UITableView.appearance().backgroundColor = bg
+    }
+}
+
+extension ButtonStyle where Self == Theme.PillButtonStyle {
+    /// A solid accent-filled pill button — the app's primary action style.
+    static var pill: Theme.PillButtonStyle { Theme.PillButtonStyle() }
+    /// An outline-only accent pill button — the app's secondary action style.
+    static var pillOutline: Theme.PillButtonStyle { Theme.PillButtonStyle(isProminent: false) }
+}
+
+extension View {
+    /// Swaps SwiftUI's default white List/Form background for the app's
+    /// warm paper background, so scrollable list-based screens read as
+    /// part of the same visual world as the Dashboard and the homepage,
+    /// rather than a stock iOS list/settings screen.
+    func themedScrollBackground() -> some View {
+        self
+            .scrollContentBackground(.hidden)
+            .background(Theme.background)
     }
 }
 

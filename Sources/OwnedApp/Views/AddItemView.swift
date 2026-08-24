@@ -22,7 +22,7 @@ struct AddItemView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("What did you buy") {
+                Section {
                     TextField("Item name", text: $name)
                     TextField("Retailer", text: $retailer)
                     TextField("Price (optional)", text: $priceText)
@@ -34,9 +34,12 @@ struct AddItemView: View {
                             Label(option.label, systemImage: option.systemImage).tag(ItemCategory?.some(option))
                         }
                     }
+                } header: {
+                    Theme.sectionHeader("What did you buy")
                 }
+                .listRowBackground(Theme.panel)
 
-                Section("Receipt") {
+                Section {
                     if let capturedImage {
                         Image(uiImage: capturedImage)
                             .resizable()
@@ -46,22 +49,34 @@ struct AddItemView: View {
                     Button(capturedImage == nil ? "Take a photo" : "Retake photo") {
                         isPresentingCamera = true
                     }
+                    .foregroundStyle(Theme.accent)
+                    .fontWeight(.semibold)
+                } header: {
+                    Theme.sectionHeader("Receipt")
                 }
+                .listRowBackground(Theme.panel)
 
-                Section("Return window") {
+                Section {
                     Toggle("Track a return deadline", isOn: $trackReturnWindow)
                     if trackReturnWindow {
                         Stepper("Return within \(returnWindowDays) days", value: $returnWindowDays, in: 1...365)
                     }
+                } header: {
+                    Theme.sectionHeader("Return window")
                 }
+                .listRowBackground(Theme.panel)
 
-                Section("Warranty") {
+                Section {
                     Toggle("Track a warranty", isOn: $trackWarranty)
                     if trackWarranty {
                         DatePicker("Warranty expires", selection: $warrantyDate, displayedComponents: .date)
                     }
+                } header: {
+                    Theme.sectionHeader("Warranty")
                 }
+                .listRowBackground(Theme.panel)
             }
+            .themedScrollBackground()
             .navigationTitle("Add purchase")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -69,6 +84,7 @@ struct AddItemView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { save() }
+                        .fontWeight(.semibold)
                         .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }

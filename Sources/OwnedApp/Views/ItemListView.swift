@@ -69,8 +69,7 @@ struct ItemListView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 if !itemStore.items.isEmpty {
-                    filterPicker
-                        .padding(.horizontal)
+                    statusFilterRow
                         .padding(.top, 8)
                         .padding(.bottom, 4)
 
@@ -91,6 +90,7 @@ struct ItemListView: View {
                                 NavigationLink(value: item.id) {
                                     row(for: item)
                                 }
+                                .listRowBackground(Theme.panel)
                             }
                             .onDelete { offsets in
                                 let idsToDelete = offsets.map { visibleItems[$0].id }
@@ -103,9 +103,12 @@ struct ItemListView: View {
                             }
                         }
                         .listStyle(.plain)
+                        .listRowSeparatorTint(Theme.border)
+                        .themedScrollBackground()
                     }
                 }
             }
+            .background(Theme.background)
             .navigationTitle("Owned")
             .searchable(text: $searchText, prompt: "Search your purchases")
             .navigationDestination(for: UUID.self) { itemID in
@@ -157,7 +160,7 @@ struct ItemListView: View {
         if !trimmedSearch.isEmpty {
             items = items.filter {
                 $0.name.localizedCaseInsensitiveContains(trimmedSearch)
-                    || $0.retailer.localizedCaseInsensitiveContains(trimmedSearch)
+                || $0.retailer.localizedCaseInsensitiveContains(trimmedSearch)
             }
         }
 
@@ -181,13 +184,21 @@ struct ItemListView: View {
         return items
     }
 
-    private var filterPicker: some View {
-        Picker("Status", selection: $statusFilter) {
-            ForEach(StatusFilter.allCases) { filter in
-                Text(filter.label).tag(filter)
+    /// A custom capsule-chip row standing in for a default segmented
+    /// `Picker` — matches the category filter row's own chip styling so
+    /// the two filters read as one consistent control language instead
+    /// of a stock iOS segmented control sitting above a custom row.
+    private var statusFilterRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(StatusFilter.allCases) { filter in
+                    chip(label: filter.label, isSelected: statusFilter == filter) {
+                        statusFilter = filter
+                    }
+                }
             }
+            .padding(.horizontal)
         }
-        .pickerStyle(.segmented)
     }
 
     private var categoryFilterRow: some View {
@@ -206,14 +217,33 @@ struct ItemListView: View {
         }
     }
 
+    private func chip(label: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.caption.weight(.medium))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(isSelected ? Theme.accent : Theme.panel)
+                .foregroundStyle(isSelected ? Theme.onAccent : Theme.textDim)
+                .overlay(
+                    Capsule().stroke(isSelected ? Color.clear : Theme.border, lineWidth: 1)
+                )
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
     private func categoryChip(label: String, systemImage: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Label(label, systemImage: systemImage)
                 .font(.caption.weight(.medium))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                .background(isSelected ? Color.accentColor : Color.secondary.opacity(0.15))
-                .foregroundStyle(isSelected ? Color.white : Color.primary)
+                .background(isSelected ? Theme.accent : Theme.panel)
+                .foregroundStyle(isSelected ? Theme.onAccent : Theme.textDim)
+                .overlay(
+                    Capsule().stroke(isSelected ? Color.clear : Theme.border, lineWidth: 1)
+                )
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -242,6 +272,7 @@ struct ItemListView: View {
             Button("Add a purchase") {
                 isPresentingAddItem = true
             }
+            .buttonStyle(.pill)
         }
     }
 
@@ -250,8 +281,8 @@ struct ItemListView: View {
             Label("No matches", systemImage: "line.3.horizontal.decrease.circle")
         } description: {
             Text(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                 ? "No purchases match the \u{201C}\(statusFilter.label)\u{201D} filter."
-                 : "No purchases match \u{201C}\(searchText)\u{201D}.")
+                ? "No purchases match the \u{201C}\(statusFilter.label)\u{201D} filter."
+                : "No purchases match \u{201C}\(searchText)\u{201D}.")
         }
     }
 
@@ -261,6 +292,7 @@ struct ItemListView: View {
                 HStack(spacing: 4) {
                     Text(item.name)
                         .font(.body.weight(.medium))
+                        .foregroundStyle(Theme.textPrimary)
                     if item.resolvedAt != nil {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.caption)
@@ -275,7 +307,7 @@ struct ItemListView: View {
                     }
                 }
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.textDim)
             }
 
             Spacer()

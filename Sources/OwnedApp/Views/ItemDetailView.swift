@@ -30,22 +30,27 @@ struct ItemDetailView: View {
                     }
                 }
             }
+            .listRowBackground(Theme.panel)
 
-            Section("Deadlines") {
+            Section {
                 if item.deadlines.isEmpty {
                     Text("No return window or warranty tracked for this item.")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.textDim)
                 } else {
                     ForEach(item.deadlines.sorted(by: { $0.date < $1.date })) { deadline in
                         deadlineRow(deadline)
                     }
                 }
+            } header: {
+                Theme.sectionHeader("Deadlines")
             }
+            .listRowBackground(Theme.panel)
 
-            Section("Outcome") {
+            Section {
                 if let resolvedAt {
                     Label {
                         Text("Returned or claimed on \(resolvedAt.formatted(date: .abbreviated, time: .omitted))")
+                            .foregroundStyle(Theme.textPrimary)
                     } icon: {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundStyle(.green)
@@ -57,13 +62,24 @@ struct ItemDetailView: View {
                     Button("Mark as returned or claimed") {
                         markResolved(Date())
                     }
+                    .buttonStyle(.pill)
+                    .listRowInsets(EdgeInsets())
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .center)
                 }
+            } header: {
+                Theme.sectionHeader("Outcome")
             }
+            .listRowBackground(Theme.panel)
 
             if !item.notes.isEmpty {
-                Section("Notes") {
+                Section {
                     Text(item.notes)
+                        .foregroundStyle(Theme.textPrimary)
+                } header: {
+                    Theme.sectionHeader("Notes")
                 }
+                .listRowBackground(Theme.panel)
             }
 
             Section {
@@ -71,14 +87,19 @@ struct ItemDetailView: View {
                     ShareLink(item: claimPackURL) {
                         Label("Share claim pack (PDF)", systemImage: "doc.richtext")
                     }
+                    .foregroundStyle(Theme.accent)
                 } else {
                     Label("Preparing claim pack…", systemImage: "doc.richtext")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.textDim)
                 }
             } footer: {
                 Text("Bundles this item's details, deadlines, and receipt photo into a PDF you can attach to a return or warranty claim.")
+                    .foregroundStyle(Theme.textFaint)
             }
+            .listRowBackground(Theme.panel)
         }
+        .listRowSeparatorTint(Theme.border)
+        .themedScrollBackground()
         .navigationTitle(item.name)
         .task {
             if let filename = item.receiptPhotoFilename {
@@ -102,9 +123,10 @@ struct ItemDetailView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(deadline.kind.label)
                         .font(.body.weight(.medium))
+                        .foregroundStyle(Theme.textPrimary)
                     Text(deadline.date.formatted(date: .abbreviated, time: .omitted))
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.textDim)
                 }
 
                 Spacer()
@@ -119,7 +141,7 @@ struct ItemDetailView: View {
                     Label("Add to Wallet", systemImage: "wallet.pass")
                         .font(.caption.weight(.medium))
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.pillOutline)
             }
         }
         .padding(.vertical, 2)

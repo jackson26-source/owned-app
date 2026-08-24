@@ -17,17 +17,21 @@ struct TimelineView: View {
                     ContentUnavailableView {
                         Label("Nothing on the clock", systemImage: "calendar")
                     } description: {
-                        Text(includeExpired ? "No deadlines tracked yet." : "No upcoming deadlines. Toggle \u{201C}Show expired\u{201D} to see past ones.")
+                        Text(includeExpired ? "No deadlines tracked yet." : "No upcoming deadlines. Toggle “Show expired” to see past ones.")
                     }
                 } else {
                     List(entries) { entry in
                         NavigationLink(value: entry.item.id) {
                             row(for: entry)
                         }
+                        .listRowBackground(Theme.panel)
                     }
                     .listStyle(.plain)
+                    .listRowSeparatorTint(Theme.border)
+                    .themedScrollBackground()
                 }
             }
+            .background(Theme.background)
             .navigationTitle("Timeline")
             .navigationDestination(for: UUID.self) { itemID in
                 if let item = itemStore.items.first(where: { $0.id == itemID }) {
@@ -57,19 +61,20 @@ struct TimelineView: View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text(relativeLabel(for: entry.deadline.date))
-                    .font(.caption.weight(.semibold))
+                    .font(Theme.eyebrow(11))
                     .foregroundStyle(colorForStatus(entry.deadline.status()))
                 Text(entry.item.name)
                     .font(.body.weight(.medium))
+                    .foregroundStyle(Theme.textPrimary)
                 Text("\(entry.deadline.kind.label) · \(entry.item.retailer)")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.textDim)
             }
             Spacer()
             if let price = entry.item.priceDisplay {
                 Text(price)
                     .font(.body.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.textDim)
             }
         }
         .padding(.vertical, 4)
@@ -87,9 +92,9 @@ struct TimelineView: View {
 
     private func colorForStatus(_ status: ItemStatus) -> Color {
         switch status {
-        case .active: return .secondary
-        case .expiringSoon: return .orange
-        case .expired: return .secondary
+        case .active: return Theme.textFaint
+        case .expiringSoon: return Theme.accent
+        case .expired: return Theme.textFaint
         }
     }
 }
