@@ -2,16 +2,19 @@ import SwiftUI
 
 struct DashboardView: View {
     @EnvironmentObject private var itemStore: ItemStore
+    @State private var isPresentingAddItem = false
 
     var body: some View {
         NavigationStack {
             Group {
                 if itemStore.items.isEmpty {
-                    ContentUnavailableView {
-                        Label("Nothing to show yet", systemImage: "chart.bar")
-                    } description: {
-                        Text("Add a purchase to see your tracking stats here.")
-                    }
+                    EmptyStateView(
+                        icon: "chart.bar",
+                        title: "Nothing to show yet",
+                        message: "Add a purchase to see your tracking stats here.",
+                        actionTitle: "Add a purchase",
+                        action: { isPresentingAddItem = true }
+                    )
                 } else {
                     List {
                         Section {
@@ -53,6 +56,9 @@ struct DashboardView: View {
                 }
             }
             .navigationTitle("Dashboard")
+            .sheet(isPresented: $isPresentingAddItem) {
+                AddItemView()
+            }
         }
     }
 

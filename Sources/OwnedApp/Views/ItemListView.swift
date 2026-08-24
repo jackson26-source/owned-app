@@ -264,26 +264,23 @@ struct ItemListView: View {
     // MARK: - Empty states
 
     private var emptyState: some View {
-        ContentUnavailableView {
-            Label("Nothing tracked yet", systemImage: "shippingbox")
-        } description: {
-            Text("Add a purchase to track its return window or warranty.")
-        } actions: {
-            Button("Add a purchase") {
-                isPresentingAddItem = true
-            }
-            .buttonStyle(.pill)
-        }
+        EmptyStateView(
+            icon: "shippingbox",
+            title: "Nothing tracked yet",
+            message: "Add a purchase to track its return window or warranty.",
+            actionTitle: "Add a purchase",
+            action: { isPresentingAddItem = true }
+        )
     }
 
     private var noResultsState: some View {
-        ContentUnavailableView {
-            Label("No matches", systemImage: "line.3.horizontal.decrease.circle")
-        } description: {
-            Text(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        EmptyStateView(
+            icon: "line.3.horizontal.decrease.circle",
+            title: "No matches",
+            message: searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 ? "No purchases match the \u{201C}\(statusFilter.label)\u{201D} filter."
-                : "No purchases match \u{201C}\(searchText)\u{201D}.")
-        }
+                : "No purchases match \u{201C}\(searchText)\u{201D}."
+        )
     }
 
     private func row(for item: TrackedItem) -> some View {
