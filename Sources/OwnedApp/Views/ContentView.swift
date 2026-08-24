@@ -3,6 +3,10 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var itemStore: ItemStore
 
+    init() {
+        Theme.applyAppearance()
+    }
+
     var body: some View {
         TabView {
             ItemListView()
@@ -25,6 +29,7 @@ struct ContentView: View {
                     Label("Settings", systemImage: "gearshape")
                 }
         }
+        .tint(Theme.accent)
         .task {
             NotificationService.shared.scheduleWeeklyDigest(for: itemStore.items)
         }

@@ -61,17 +61,28 @@ struct DashboardView: View {
     /// The headline stat at the top of the dashboard: how much money is
     /// currently sitting inside an open return window or active warranty
     /// — the thing Owned exists to protect, front and center rather than
-    /// buried in a list row like every other number here.
+    /// buried in a list row like every other number here. Styled after
+    /// the marketing site's own hero treatment: a small monospace
+    /// eyebrow label over a large serif number in the accent color,
+    /// set on a bordered panel card.
     private var heroStat: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             Text("PROTECTED RIGHT NOW")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .font(Theme.eyebrow())
+                .tracking(0.6)
+                .foregroundStyle(Theme.textFaint)
             Text(protectedValueDisplay ?? "$0")
-                .font(.system(size: 40, weight: .bold, design: .rounded))
+                .font(Theme.serif(44))
+                .foregroundStyle(Theme.accent)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 12)
+        .padding(20)
+        .background(Theme.panel)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Theme.border, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     // MARK: - Stats
@@ -196,8 +207,8 @@ private enum StatusSummary: CaseIterable, Identifiable {
     var color: Color {
         switch self {
         case .active: return .green
-        case .expiringSoon: return .orange
-        case .expired: return .secondary
+        case .expiringSoon: return Theme.accent
+        case .expired: return Theme.textFaint
         }
     }
 
