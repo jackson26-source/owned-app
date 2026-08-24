@@ -1,0 +1,150 @@
+name: Generate App Store screenshots
+
+# Manually triggered only (workflow_dispatch) - unlike testflight.yml and
+# simulator-build.yml, screenshots don't need regenerating on every push,
+# only when the UI actually changes enough to be worth new App Store
+# Connect listing images.
+#
+# How this works: OwnedUITests (see project.yml) is a real XCUITest
+# target that launches the app with a UI_TESTING_SCREENSHOTS launch
+# argument (see ItemStore.swift's screenshotModeLaunchArgument), which
+# seeds a handful of realistic demo purchases into a private, throwaway
+# JSON file instead of touching real on-device data. The test then taps
+# through Dashboard/Items/Timeline and captures a full-screen screenshot
+# per tab via XCTAttachment, which xcodebuild bundles into the .xcresult.
+# This job extracts those PNGs out of the .xcresult with xcresulttool and
+# uploads them as a workflow artifact - from there they can be downloaded
+# and uploaded to App Store Connect by hand (screenshots are a one-time
+# listing asset, not something to auto-publish straight from CI).
+#
+# Runs against an iPhone 16 Pro Max simulator (6.9" display) - the one
+# screenshot size Apple actually requires for an iPhone-only app
+# (TARGETED_DEVICE_FAMILY=1 in project.yml, confirmed against Apple's
+# current screenshot-specifications doc); every smaller size Apple
+# supports auto-scales down from this one, so a single device is enough
+# for a first pass. If the exact device name below doesn't exist on the
+# runner's simulator set, the "Show available simulators" step will list
+# what does - swap the name in the destination string below and re-run.
+#
+# xcresulttool's exact CLI surface changes between Xcode versions (the
+# old --legacy flag is deprecated), so the extraction step tries the
+# modern "get test-results tests" form first and falls back to --legacy.
+# It also always writes the raw JSON it parsed as a debug artifact, so if
+# a future Xcode version changes the schema again, the fix is a quick
+# look at that file rather than a guess.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  screenshots:
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select latest stable Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Owned.xcodeproj from project.yml
+        run: xcodegen generate
+
+      - name: Show available simulators (for debugging device-name drift)
+        run: xcrun simctl list devices available
+
+      - name: Run screenshot UI test on iPhone 16 Pro Max (6.9" display)
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project Owned.xcodeproj \
+            -scheme Owned \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro Max,OS=latest' \
+            -resultBundlePath "$RUNNER_TEMP/Screenshots.xcresult" \
+            -only-testing:OwnedUITests/ScreenshotUITests/testCaptureAppStoreScreenshots \
+            2>&1 | tee "$RUNNER_TEMP/xcodebuild-test.log"
+
+      - name: Extract screenshots from .xcresult
+        run: |
+          mkdir -p "$RUNNER_TEMP/screenshots-out"
+          python3 - "$RUNNER_TEMP/Screenshots.xcresult" "$RUNNER_TEMP/screenshots-out" << 'PYEOF'
+          import json, subprocess, sys, os
+
+          xcresult, out_dir = sys.argv[1], sys.argv[2]
+
+          def run(*args):
+              return subprocess.run(list(args), capture_output=True, text=True, check=True).stdout
+
+          # Xcode 16+ ships a newer xcresulttool CLI with no --legacy
+          # flag. Try that first since this job pins "latest-stable"
+          # Xcode; fall back to the legacy CLI for older toolchains.
+          mode = "modern"
+          try:
+              raw = run("xcrun", "xcresulttool", "get", "test-results", "tests",
+                        "--path", xcresult, "--format", "json")
+          except subprocess.CalledProcessError:
+              mode = "legacy"
+              raw = run("xcrun", "xcresulttool", "get", "--legacy",
+                        "--path", xcresult, "--format", "json")
+
+          data = json.loads(raw)
+          with open(os.path.join(out_dir, "_debug_test_results.json"), "w") as f:
+              json.dump(data, f, indent=2)
+
+          attachments = []
+
+          def walk(node):
+              if isinstance(node, dict):
+                  name = node.get("name")
+                  if name is None and isinstance(node.get("_name"), dict):
+                      name = node["_name"].get("_value")
+                  payload_ref = node.get("payloadRef") or node.get("_payloadRef")
+                  if payload_ref:
+                      ref_id = None
+                      if isinstance(payload_ref, dict):
+                          ref_id = payload_ref.get("id")
+                          if ref_id is None and isinstance(payload_ref.get("_id"), dict):
+                              ref_id = payload_ref["_id"].get("_value")
+                      if ref_id and name:
+                          attachments.append((str(name), str(ref_id)))
+                  for value in node.values():
+                      walk(value)
+              elif isinstance(node, list):
+                  for item in node:
+                      walk(item)
+
+          walk(data)
+          print("Found " + str(len(attachments)) + " candidate attachments (mode=" + mode + ")")
+
+          for name, ref_id in attachments:
+              safe_name = "".join(c if c.isalnum() or c in "-_." else "_" for c in name)
+              out_path = os.path.join(out_dir, safe_name + ".png")
+              args = ["xcrun", "xcresulttool", "export", "object",
+                      "--path", xcresult, "--id", ref_id,
+                      "--type", "file", "--output-path", out_path]
+              if mode == "legacy":
+                  args.insert(3, "--legacy")
+              try:
+                  subprocess.run(args, check=True, capture_output=True, text=True)
+                  print("Exported " + out_path)
+              except subprocess.CalledProcessError as e:
+                  print("Failed to export " + name + " (" + ref_id + "): " + e.stderr)
+          PYEOF
+          echo "----- contents of screenshots-out -----"
+          ls -la "$RUNNER_TEMP/screenshots-out"
+
+      - name: Upload screenshots artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-store-screenshots
+          path: ${{ runner.temp }}/screenshots-out
+          if-no-files-found: warn
+          retention-days: 30
