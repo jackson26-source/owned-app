@@ -36,6 +36,19 @@ name: Build and upload Owned to TestFlight
 # the API key permission issue entirely for archiving/exporting. The API
 # key is still used for the final TestFlight upload, which only needs
 # upload access, not certificate management.
+#
+# IMPORTANT gotcha (found 2026-08-24): `xcrun altool --upload-app` can exit
+# 0 even when App Store Connect rejects the binary - it printed
+# "UPLOAD FAILED with 1 error" / "Failed to upload package." to its own
+# output while the shell step still reported green. That first real upload
+# was rejected with a 409 Invalid bundle error: UISupportedInterfaceOrientations
+# only listed Portrait, but App Store Connect requires all four orientations
+# for iPad multitasking support even though this app is iPhone-only
+# (TARGETED_DEVICE_FAMILY=1) - fixed by declaring all four orientations in
+# project.yml. Because altool's exit code can't be trusted on its own, the
+# "Upload to TestFlight" step below also greps altool's own output for
+# failure text and fails the step explicitly when it finds it, so a bad
+# upload can never again show up as a green checkmark.
 
 on:
   push:
@@ -218,5 +231,21 @@ jobs:
           API_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
         run: |
           IPA_PATH=$(find "$RUNNER_TEMP/export" -name "*.ipa" | head -n 1)
+
+          # altool has a known quirk: it can print "UPLOAD FAILED" and exit
+          # 0 at the same time (this bit us on 2026-08-24 - a rejected
+          # build showed up as a green step). Don't trust the exit code
+          # alone: capture the output and also scan it for altool's own
+          # failure text before calling this step a success.
+          set +e
           xcrun altool --upload-app -f "$IPA_PATH" -t ios \
-            --apiKey "$API_KEY_ID" --apiIssuer "$API_ISSUER_ID"
+            --apiKey "$API_KEY_ID" --apiIssuer "$API_ISSUER_ID" 2>&1 | tee "$RUNNER_TEMP/altool_upload.log"
+          ALTOOL_EXIT=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$ALTOOL_EXIT" -ne 0 ] || grep -q "UPLOAD FAILED" "$RUNNER_TEMP/altool_upload.log"; then
+            echo "::error::altool reported a failed upload (exit code $ALTOOL_EXIT). App Store Connect did NOT accept this build - see the validation error above for the specific reason."
+            exit 1
+          fi
+
+          echo "Upload accepted by App Store Connect."
