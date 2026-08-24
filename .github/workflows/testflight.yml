@@ -88,10 +88,16 @@ jobs:
             build
 
           echo "----- locating built .app -----"
-          APP_PATH=$(find "$RUNNER_TEMP/DerivedData/Build/Products" -maxdepth 2 -name "*.app" | head -n 1)
+          APP_PATH=$(find "$RUNNER_TEMP/DerivedData/Build/Products" -maxdepth 2 -name "*.app" 2>/dev/null | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo "No .app found at the usual depth - searching all of DerivedData as a fallback..."
+            APP_PATH=$(find "$RUNNER_TEMP/DerivedData" -iname "*.app" -type d 2>/dev/null | head -n 1)
+          fi
           echo "App path: $APP_PATH"
           if [ -z "$APP_PATH" ]; then
-            echo "::error::Could not find a built .app under DerivedData/Build/Products - the build likely failed or produced output somewhere unexpected."
+            echo "::error::Could not find any built .app anywhere under DerivedData - see the full Products tree below."
+            echo "----- full listing of DerivedData/Build/Products (depth 4) -----"
+            find "$RUNNER_TEMP/DerivedData/Build/Products" -maxdepth 4 2>/dev/null
             exit 1
           fi
           echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
