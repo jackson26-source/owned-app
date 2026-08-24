@@ -62,6 +62,7 @@ struct ItemListView: View {
     @State private var isPresentingAddItem = false
     @State private var searchText = ""
     @State private var statusFilter: StatusFilter = .all
+    @State private var categoryFilter: ItemCategory?
     @State private var sortOption: SortOption = .urgency
 
     var body: some View {
@@ -72,6 +73,11 @@ struct ItemListView: View {
                         .padding(.horizontal)
                         .padding(.top, 8)
                         .padding(.bottom, 4)
+
+                    if usedCategories.count > 1 {
+                        categoryFilterRow
+                            .padding(.bottom, 4)
+                    }
                 }
 
                 Group {
@@ -127,13 +133,25 @@ struct ItemListView: View {
 
     // MARK: - Filtering & sorting
 
+    /// Which categories actually appear among tracked items right now —
+    /// used to decide whether the category filter row is worth showing at
+    /// all (no point offering a filter with only one or zero options).
+    private var usedCategories: [ItemCategory] {
+        Array(Set(itemStore.items.compactMap(\.category))).sorted { $0.label < $1.label }
+    }
+
     /// The items actually shown after applying the status filter, the
-    /// search text, and the chosen sort order. Recomputed on every view
-    /// update rather than cached — the item count here is small (a few
-    /// hundred at most, per ItemStore's own design assumption), so a
-    /// plain filter+sort is more than fast enough and needs no caching.
+    /// category filter, the search text, and the chosen sort order.
+    /// Recomputed on every view update rather than cached — the item
+    /// count here is small (a few hundred at most, per ItemStore's own
+    /// design assumption), so a plain filter+sort is more than fast
+    /// enough and needs no caching.
     private var visibleItems: [TrackedItem] {
         var items = itemStore.items.filter { statusFilter.matches($0) }
+
+        if let categoryFilter {
+            items = items.filter { $0.category == categoryFilter }
+        }
 
         let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedSearch.isEmpty {
@@ -170,6 +188,35 @@ struct ItemListView: View {
             }
         }
         .pickerStyle(.segmented)
+    }
+
+    private var categoryFilterRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                categoryChip(label: "All", systemImage: "square.grid.2x2", isSelected: categoryFilter == nil) {
+                    categoryFilter = nil
+                }
+                ForEach(usedCategories) { category in
+                    categoryChip(label: category.label, systemImage: category.systemImage, isSelected: categoryFilter == category) {
+                        categoryFilter = (categoryFilter == category) ? nil : category
+                    }
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+
+    private func categoryChip(label: String, systemImage: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(label, systemImage: systemImage)
+                .font(.caption.weight(.medium))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(isSelected ? Color.accentColor : Color.secondary.opacity(0.15))
+                .foregroundStyle(isSelected ? Color.white : Color.primary)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 
     private var sortMenu: some View {
