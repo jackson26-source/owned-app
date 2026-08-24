@@ -47,3 +47,39 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         GENERATE_INFOPLIST_FILE: NO
+
+  # UI-test target used only by .github/workflows/screenshots.yml to drive
+  # the app on a simulator and capture App Store Connect listing images.
+  # Never signed, never archived, never shipped - it's a test bundle, not
+  # part of the app.
+  OwnedUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Tests/OwnedUITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.macless.owned.uitests
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: Owned
+
+# Explicit scheme so the OwnedUITests target actually runs under
+# `xcodebuild test -scheme Owned`. Without this, XcodeGen's default
+# auto-generated per-target scheme would build OwnedUITests but never
+# wire it into the Owned scheme's Test action.
+schemes:
+  Owned:
+    build:
+      targets:
+        Owned: all
+        OwnedUITests: [test]
+    test:
+      config: Debug
+      targets:
+        - OwnedUITests
+    run:
+      config: Debug
+    archive:
+      config: Release
