@@ -1,92 +1,239 @@
 import SwiftUI
 
+private enum StatusFilter: String, CaseIterable, Identifiable, Hashable {
+    case all
+    case active
+    case expiringSoon
+    case expired
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .all: return "All"
+        case .active: return "Active"
+        case .expiringSoon: return "Soon"
+        case .expired: return "Expired"
+        }
+    }
+
+    func matches(_ item: TrackedItem) -> Bool {
+        switch self {
+        case .all: return true
+        case .active: return item.overallStatus == .active
+        case .expiringSoon: return item.overallStatus == .expiringSoon
+        case .expired: return item.overallStatus == .expired
+        }
+    }
+}
+
+private enum SortOption: String, CaseIterable, Identifiable, Hashable {
+    case urgency
+    case recentlyAdded
+    case priceHighToLow
+    case priceLowToHigh
+    case nameAZ
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .urgency: return "Most urgent first"
+        case .recentlyAdded: return "Recently added"
+        case .priceHighToLow: return "Price: high to low"
+        case .priceLowToHigh: return "Price: low to high"
+        case .nameAZ: return "Name (A–Z)"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .urgency: return "flame"
+        case .recentlyAdded: return "clock"
+        case .priceHighToLow: return "arrow.down"
+        case .priceLowToHigh: return "arrow.up"
+        case .nameAZ: return "textformat"
+        }
+    }
+}
+
 struct ItemListView: View {
-      @EnvironmentObject private var itemStore: ItemStore
-      @State private var isPresentingAddItem = false
+    @EnvironmentObject private var itemStore: ItemStore
+    @State private var isPresentingAddItem = false
+    @State private var searchText = ""
+    @State private var statusFilter: StatusFilter = .all
+    @State private var sortOption: SortOption = .urgency
 
-      var body: some View {
-                NavigationStack {
-                              Group {
-                                                if itemStore.items.isEmpty {
-                                                                      emptyState
-                                                } else {
-                                                                      List {
-                                                                                                ForEach(itemStore.sortedByUrgency) { item in
-                                                                                                                                                                NavigationLink(value: item.id) {
-                                                                                                                                                                                                  row(for: item)
-                                                                                                                                                                }
-                                                                                                                                   }
-                                                                                                .onDelete { offsets in
-                                                                                                                                       let idsToDelete = offsets.map { itemStore.sortedByUrgency[$0].id }
-                                                                                                                                       for id in idsToDelete {
-                                                                                                                                                                         if let item = itemStore.items.first(where: { $0.id == id }) {
-                                                                                                                                                                                                               NotificationService.shared.cancelReminders(for: item)
-                                                                                                                                                                                                               itemStore.delete(item)
-                                                                                                                                                                                                           }
-                                                                                                                                       }
-                                                                                                          }
-                                                                      }
-                                                }
-                              }
-                              .navigationTitle("Owned")
-                              .navigationDestination(for: UUID.self) { itemID in
-                                                                                      if let item = itemStore.items.first(where: { $0.id == itemID }) {
-                                                                                                            ItemDetailView(item: item)
-                                                                                      }
-                                                                     }
-                              .toolbar {
-                                                ToolbarItem(placement: .primaryAction) {
-                                                                      Button {
-                                                                                                isPresentingAddItem = true
-                                                                      } label: {
-                                                                                                Label("Add", systemImage: "plus")
-                                                                      }
-                                                }
-                              }
-                              .sheet(isPresented: $isPresentingAddItem) {
-                                                AddItemView()
-                              }
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                if !itemStore.items.isEmpty {
+                    filterPicker
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                        .padding(.bottom, 4)
                 }
-      }
 
-      private var emptyState: some View {
-                ContentUnavailableView {
-                              Label("Nothing tracked yet", systemImage: "shippingbox")
-                } description: {
-                              Text("Add a purchase to track its return window or warranty.")
-                } actions: {
-                              Button("Add a purchase") {
-                                                isPresentingAddItem = true
-                              }
+                Group {
+                    if itemStore.items.isEmpty {
+                        emptyState
+                    } else if visibleItems.isEmpty {
+                        noResultsState
+                    } else {
+                        List {
+                            ForEach(visibleItems) { item in
+                                NavigationLink(value: item.id) {
+                                    row(for: item)
+                                }
+                            }
+                            .onDelete { offsets in
+                                let idsToDelete = offsets.map { visibleItems[$0].id }
+                                for id in idsToDelete {
+                                    if let item = itemStore.items.first(where: { $0.id == id }) {
+                                        NotificationService.shared.cancelReminders(for: item)
+                                        itemStore.delete(item)
+                                    }
+                                }
+                            }
+                        }
+                        .listStyle(.plain)
+                    }
                 }
-      }
-
-      private func row(for item: TrackedItem) -> some View {
-                HStack {
-                              VStack(alignment: .leading, spacing: 4) {
-                                                Text(item.name)
-                                                    .font(.body.weight(.medium))
-                                                HStack(spacing: 6) {
-                                                                      Text(item.retailer)
-                                                                      if let price = item.priceDisplay {
-                                                                                                Text("·")
-                                                                                                Text(price)
-                                                                      }
-                                                }
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                              }
-
-                              Spacer()
-
-                              StatusBadge(deadline: item.soonestDeadline)
+            }
+            .navigationTitle("Owned")
+            .searchable(text: $searchText, prompt: "Search your purchases")
+            .navigationDestination(for: UUID.self) { itemID in
+                if let item = itemStore.items.first(where: { $0.id == itemID }) {
+                    ItemDetailView(item: item)
                 }
-                .padding(.vertical, 4)
-      }
+            }
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        isPresentingAddItem = true
+                    } label: {
+                        Label("Add", systemImage: "plus")
+                    }
+                }
+                ToolbarItem(placement: .secondaryAction) {
+                    sortMenu
+                }
+            }
+            .sheet(isPresented: $isPresentingAddItem) {
+                AddItemView()
+            }
+        }
+    }
+
+    // MARK: - Filtering & sorting
+
+    /// The items actually shown after applying the status filter, the
+    /// search text, and the chosen sort order. Recomputed on every view
+    /// update rather than cached — the item count here is small (a few
+    /// hundred at most, per ItemStore's own design assumption), so a
+    /// plain filter+sort is more than fast enough and needs no caching.
+    private var visibleItems: [TrackedItem] {
+        var items = itemStore.items.filter { statusFilter.matches($0) }
+
+        let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedSearch.isEmpty {
+            items = items.filter {
+                $0.name.localizedCaseInsensitiveContains(trimmedSearch)
+                    || $0.retailer.localizedCaseInsensitiveContains(trimmedSearch)
+            }
+        }
+
+        switch sortOption {
+        case .urgency:
+            items.sort { lhs, rhs in
+                let l = lhs.soonestDeadline?.date ?? .distantFuture
+                let r = rhs.soonestDeadline?.date ?? .distantFuture
+                return l < r
+            }
+        case .recentlyAdded:
+            items.sort { $0.purchaseDate > $1.purchaseDate }
+        case .priceHighToLow:
+            items.sort { ($0.priceCents ?? -1) > ($1.priceCents ?? -1) }
+        case .priceLowToHigh:
+            items.sort { ($0.priceCents ?? Int.max) < ($1.priceCents ?? Int.max) }
+        case .nameAZ:
+            items.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        }
+
+        return items
+    }
+
+    private var filterPicker: some View {
+        Picker("Status", selection: $statusFilter) {
+            ForEach(StatusFilter.allCases) { filter in
+                Text(filter.label).tag(filter)
+            }
+        }
+        .pickerStyle(.segmented)
+    }
+
+    private var sortMenu: some View {
+        Menu {
+            Picker("Sort by", selection: $sortOption) {
+                ForEach(SortOption.allCases) { option in
+                    Label(option.label, systemImage: option.systemImage).tag(option)
+                }
+            }
+        } label: {
+            Label("Sort", systemImage: "arrow.up.arrow.down")
+        }
+    }
+
+    // MARK: - Empty states
+
+    private var emptyState: some View {
+        ContentUnavailableView {
+            Label("Nothing tracked yet", systemImage: "shippingbox")
+        } description: {
+            Text("Add a purchase to track its return window or warranty.")
+        } actions: {
+            Button("Add a purchase") {
+                isPresentingAddItem = true
+            }
+        }
+    }
+
+    private var noResultsState: some View {
+        ContentUnavailableView {
+            Label("No matches", systemImage: "line.3.horizontal.decrease.circle")
+        } description: {
+            Text(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                 ? "No purchases match the \u{201C}\(statusFilter.label)\u{201D} filter."
+                 : "No purchases match \u{201C}\(searchText)\u{201D}.")
+        }
+    }
+
+    private func row(for item: TrackedItem) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.name)
+                    .font(.body.weight(.medium))
+                HStack(spacing: 6) {
+                    Text(item.retailer)
+                    if let price = item.priceDisplay {
+                        Text("·")
+                        Text(price)
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            StatusBadge(deadline: item.soonestDeadline)
+        }
+        .padding(.vertical, 4)
+    }
 }
 
 #Preview {
-      let store = ItemStore()
-      return ItemListView()
-          .environmentObject(store)
+    let store = ItemStore()
+    return ItemListView()
+        .environmentObject(store)
 }
