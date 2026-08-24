@@ -9,16 +9,19 @@ private struct DeadlineEntry: Identifiable {
 struct TimelineView: View {
     @EnvironmentObject private var itemStore: ItemStore
     @State private var includeExpired = false
+    @State private var isPresentingAddItem = false
 
     var body: some View {
         NavigationStack {
             Group {
                 if entries.isEmpty {
-                    ContentUnavailableView {
-                        Label("Nothing on the clock", systemImage: "calendar")
-                    } description: {
-                        Text(includeExpired ? "No deadlines tracked yet." : "No upcoming deadlines. Toggle “Show expired” to see past ones.")
-                    }
+                    EmptyStateView(
+                        icon: "calendar",
+                        title: "Nothing on the clock",
+                        message: includeExpired ? "No deadlines tracked yet." : "No upcoming deadlines. Toggle \u{201C}Show expired\u{201D} to see past ones.",
+                        actionTitle: itemStore.items.isEmpty ? "Add a purchase" : nil,
+                        action: itemStore.items.isEmpty ? { isPresentingAddItem = true } : nil
+                    )
                 } else {
                     List(entries) { entry in
                         NavigationLink(value: entry.item.id) {
@@ -46,6 +49,9 @@ struct TimelineView: View {
                         Label(includeExpired ? "Hide expired" : "Show expired", systemImage: includeExpired ? "eye.slash" : "eye")
                     }
                 }
+            }
+            .sheet(isPresented: $isPresentingAddItem) {
+                AddItemView()
             }
         }
     }
