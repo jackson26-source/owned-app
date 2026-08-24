@@ -9,27 +9,33 @@ name: Build and upload Owned to TestFlight
 # directly: this app started as a plain SwiftPM .iOSApplication package (no
 # .xcodeproj at all), which was the right call when this was first written
 # in a sandbox with no Xcode. But across many CI runs on a real macOS
-# runner, that turned out to be a dead end for TestFlight specifically:
-#   - `xcodebuild build` against the SwiftPM-generated scheme compiles the
-#     raw executable but never wraps it into a proper .app bundle (no
-#     Owned.app anywhere in DerivedData - just a bare Mach-O binary plus a
-#     loose resource bundle).
-#   - `xcodebuild archive` against the same scheme "succeeds" but never
-#     populates Products/Applications or ApplicationProperties in the
-#     resulting .xcarchive, under either manual or automatic signing - so
-#     `xcodebuild -exportArchive` can never work; it fails with
-#     "IDEDistributionMethodManager ... Unknown Distribution Error" no
-#     matter what ExportOptions.plist says.
-#   - This matches what other people hit doing the same thing: SwiftPM's
-#     .iOSApplication product is meant to be opened and archived from
-#     Xcode's own GUI, not driven headlessly via `xcodebuild` on CI.
+# runner, that turned out to be a dead end for TestFlight specifically -
+# `xcodebuild build`/`archive` against the SwiftPM-generated scheme never
+# produced a properly-packaged, exportable .app (confirmed via a diagnostic
+# step: no Products/Applications, no ApplicationProperties). SwiftPM's
+# .iOSApplication product is meant to be opened and archived from Xcode's
+# own GUI, not driven headlessly via `xcodebuild` on CI.
 #
 # The fix: keep all the Swift source exactly as-is (it's totally ordinary
 # SwiftUI/UIKit code with no SwiftPM-specific dependencies), and generate a
 # real, standard .xcodeproj from it at build time with XcodeGen (see
-# project.yml in the repo root). That gives `xcodebuild archive` /
-# `-exportArchive` the normal project structure they expect, which is the
-# well-documented, widely-used path for iOS TestFlight CI.
+# project.yml in the repo root). Confirmed working: the resulting archive
+# now has a proper ApplicationProperties dict and embedded provisioning
+# profile.
+#
+# Why manual signing (not the App Store Connect API key's automatic
+# signing): automatic signing via -allowProvisioningUpdates worked for
+# archiving, but Xcode could only get the API key to create a *Development*
+# certificate/profile, not a Distribution one - export then failed with
+# "Cloud signing permission error" / "No profiles ... were found". That's
+# an App Store Connect API key role/permission limitation, not a project
+# problem. Since a real Xcode project (unlike the old SwiftPM target) fully
+# supports manual signing, this uses the Distribution certificate and
+# "Owned App Store" provisioning profile that were already generated and
+# stored as secrets during initial setup (see TESTFLIGHT.md) - sidestepping
+# the API key permission issue entirely for archiving/exporting. The API
+# key is still used for the final TestFlight upload, which only needs
+# upload access, not certificate management.
 
 on:
   push:
@@ -60,36 +66,100 @@ jobs:
           xcodegen generate
           ls -la Owned.xcodeproj
 
-      - name: Set up App Store Connect API key
+      - name: Import signing certificate + provisioning profile
         env:
-          API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
-          API_PRIVATE_KEY_BASE64: ${{ secrets.APPSTORE_API_PRIVATE_KEY_BASE64 }}
+          CERT_P12_BASE64: ${{ secrets.IOS_DIST_CERT_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+          APP_PROFILE_BASE64: ${{ secrets.IOS_APP_PROVISION_PROFILE_BASE64 }}
         run: |
-          mkdir -p "$RUNNER_TEMP/private_keys"
-          echo "$API_PRIVATE_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/private_keys/AuthKey_${API_KEY_ID}.p8"
-          echo "AUTH_KEY_PATH=$RUNNER_TEMP/private_keys/AuthKey_${API_KEY_ID}.p8" >> "$GITHUB_ENV"
+          KEYCHAIN_PATH="$RUNNER_TEMP/owned-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
 
-      # Automatic signing driven by the App Store Connect API key so this is
-      # fully non-interactive (no Apple ID / 2FA prompt). Xcode creates or
-      # reuses whatever certificate + provisioning profile it needs on its
-      # own, using that API key's account access.
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          echo "$CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | sed 's/"//g')
+
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "$APP_PROFILE_BASE64" | base64 --decode > "$HOME/Library/MobileDevice/Provisioning Profiles/app.mobileprovision"
+
+          echo "----- codesigning identities available in keychain -----"
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH" || true
+
+          echo "----- app.mobileprovision (decoded) -----"
+          security cms -D -i "$HOME/Library/MobileDevice/Provisioning Profiles/app.mobileprovision" > "$RUNNER_TEMP/app_profile.plist" 2>/dev/null || echo "FAILED TO DECODE app.mobileprovision"
+          grep -A1 "<key>Name</key>" "$RUNNER_TEMP/app_profile.plist" || true
+          grep -A1 "<key>UUID</key>" "$RUNNER_TEMP/app_profile.plist" || true
+          grep -A3 "<key>TeamIdentifier</key>" "$RUNNER_TEMP/app_profile.plist" || true
+          grep -A1 "<key>application-identifier</key>" "$RUNNER_TEMP/app_profile.plist" || true
+          grep -A3 "<key>ExpirationDate</key>" "$RUNNER_TEMP/app_profile.plist" || true
+
+      - name: Validate signing setup
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          check_profile() {
+            local PLIST_PATH="$1"
+            local EXPECTED_BUNDLE_ID="$2"
+            local LABEL="$3"
+
+            if [ ! -s "$PLIST_PATH" ]; then
+              echo "::error::Couldn't decode $LABEL at all in the previous step. The matching _BASE64 secret is likely not a valid base64-encoded .mobileprovision file - re-check TESTFLIGHT.md (make sure you base64'd the .mobileprovision file itself, not the .cer or .p12)."
+              return 1
+            fi
+
+            local PROFILE_TEAM_ID=$(/usr/libexec/PlistBuddy -c "Print :TeamIdentifier:0" "$PLIST_PATH" 2>/dev/null || echo "")
+            local PROFILE_APP_ID=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" "$PLIST_PATH" 2>/dev/null || echo "")
+            local PROFILE_BUNDLE_ID="${PROFILE_APP_ID#*.}"
+            local PROFILE_EXPIRY=$(/usr/libexec/PlistBuddy -c "Print :ExpirationDate" "$PLIST_PATH" 2>/dev/null || echo "(couldn't read)")
+
+            echo "$LABEL - Team ID: ${PROFILE_TEAM_ID:-(couldn't read)}"
+            echo "$LABEL - Bundle ID: ${PROFILE_BUNDLE_ID:-(couldn't read)}"
+            echo "$LABEL - Expires: $PROFILE_EXPIRY"
+
+            local FAILED=0
+            if [ -z "$PROFILE_TEAM_ID" ]; then
+              echo "::warning::Couldn't read a Team ID out of $LABEL - skipping that check, but this usually means the profile didn't decode cleanly."
+            elif [ "$PROFILE_TEAM_ID" != "$APPLE_TEAM_ID" ]; then
+              echo "::error::$LABEL's Team ID ($PROFILE_TEAM_ID) doesn't match your APPLE_TEAM_ID secret ($APPLE_TEAM_ID). Find your real Team ID at developer.apple.com/account under Membership."
+              FAILED=1
+            fi
+
+            if [ -z "$PROFILE_BUNDLE_ID" ]; then
+              echo "::warning::Couldn't read a bundle ID out of $LABEL - skipping that check."
+            elif [ "$PROFILE_BUNDLE_ID" != "$EXPECTED_BUNDLE_ID" ]; then
+              echo "::error::$LABEL's bundle ID ($PROFILE_BUNDLE_ID) doesn't match the expected $EXPECTED_BUNDLE_ID. Double-check this profile was created for the right App ID in TESTFLIGHT.md."
+              FAILED=1
+            fi
+
+            return $FAILED
+          }
+
+          OVERALL_FAILED=0
+          check_profile "$RUNNER_TEMP/app_profile.plist" "dev.macless.owned" "app.mobileprovision" || OVERALL_FAILED=1
+
+          if [ "$OVERALL_FAILED" = "1" ]; then
+            echo "::error::Signing setup validation failed - stopping here so you get a specific reason instead of a generic xcodebuild failure. Fix the mismatch above, then push again."
+            exit 1
+          fi
+
       - name: Archive
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
-          API_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
         run: |
           xcodebuild -project Owned.xcodeproj \
             -scheme Owned \
             -configuration Release \
             -archivePath "$RUNNER_TEMP/Owned.xcarchive" \
             -destination "generic/platform=iOS" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$AUTH_KEY_PATH" \
-            -authenticationKeyID "$API_KEY_ID" \
-            -authenticationKeyIssuerID "$API_ISSUER_ID" \
-            CODE_SIGN_STYLE=Automatic \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            PROVISIONING_PROFILE_SPECIFIER="Owned App Store" \
             archive
 
       - name: Inspect archive metadata
@@ -100,7 +170,7 @@ jobs:
           APP_PATH=$(find "$RUNNER_TEMP/Owned.xcarchive/Products/Applications" -maxdepth 1 -name "*.app" 2>/dev/null | head -n 1)
           echo "App path: $APP_PATH"
           if [ -n "$APP_PATH" ] && [ -f "$APP_PATH/embedded.mobileprovision" ]; then
-            security cms -D -i "$APP_PATH/embedded.mobileprovision" > "$RUNNER_TEMP/embedded_profile.plist" 2>/dev/null && /usr/libexec/PlistBuddy -c "Print" "$RUNNER_TEMP/embedded_profile.plist" || echo "FAILED TO DECODE embedded.mobileprovision"
+            security cms -D -i "$APP_PATH/embedded.mobileprovision" > "$RUNNER_TEMP/embedded_profile.plist" 2>/dev/null && /usr/libexec/PlistBuddy -c "Print :Name" "$RUNNER_TEMP/embedded_profile.plist" || echo "FAILED TO DECODE embedded.mobileprovision"
           else
             echo "No embedded.mobileprovision found in the archived .app"
           fi
@@ -117,32 +187,36 @@ jobs:
             <key>teamID</key>
             <string>${{ secrets.APPLE_TEAM_ID }}</string>
             <key>signingStyle</key>
-            <string>automatic</string>
+            <string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>dev.macless.owned</key>
+              <string>Owned App Store</string>
+            </dict>
           </dict>
           </plist>
           EOF
 
       - name: Export .ipa
-        env:
-          API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
-          API_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
         run: |
           xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/Owned.xcarchive" \
             -exportPath "$RUNNER_TEMP/export" \
-            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$AUTH_KEY_PATH" \
-            -authenticationKeyID "$API_KEY_ID" \
-            -authenticationKeyIssuerID "$API_ISSUER_ID"
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
+
+      - name: Set up App Store Connect API key
+        env:
+          API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          API_PRIVATE_KEY_BASE64: ${{ secrets.APPSTORE_API_PRIVATE_KEY_BASE64 }}
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "$API_PRIVATE_KEY_BASE64" | base64 --decode > "$HOME/.appstoreconnect/private_keys/AuthKey_${API_KEY_ID}.p8"
 
       - name: Upload to TestFlight
         env:
           API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
           API_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
         run: |
-          mkdir -p ~/.appstoreconnect/private_keys
-          cp "$AUTH_KEY_PATH" "$HOME/.appstoreconnect/private_keys/"
           IPA_PATH=$(find "$RUNNER_TEMP/export" -name "*.ipa" | head -n 1)
           xcrun altool --upload-app -f "$IPA_PATH" -t ios \
             --apiKey "$API_KEY_ID" --apiIssuer "$API_ISSUER_ID"
