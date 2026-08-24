@@ -5,25 +5,31 @@ name: Build and upload Owned to TestFlight
 # same behavior). Triggers on every push to main; you can also run it by
 # hand from the Actions tab (workflow_dispatch).
 #
-# Signing: this app is a plain SwiftPM .iOSApplication package (no real
-# .xcodeproj), and that auto-generated target has two hard limitations
-# proven out over several CI runs:
-#   1. It flatly refuses manual code signing - xcodebuild errors with
-#      "does not support provisioning profiles ... Set the provisioning
-#      profile value to Automatic". Only CODE_SIGN_STYLE=Automatic works.
-#   2. `xcodebuild archive` against this target never populates
-#      Products/Applications or ApplicationProperties in the resulting
-#      .xcarchive (confirmed via a diagnostic step, under both manual and
-#      automatic signing) - so `xcodebuild -exportArchive` can never work
-#      here; it fails with "IDEDistributionMethodManager ... Unknown
-#      Distribution Error" no matter what ExportOptions.plist says.
+# Why this generates a real .xcodeproj instead of building Package.swift
+# directly: this app started as a plain SwiftPM .iOSApplication package (no
+# .xcodeproj at all), which was the right call when this was first written
+# in a sandbox with no Xcode. But across many CI runs on a real macOS
+# runner, that turned out to be a dead end for TestFlight specifically:
+#   - `xcodebuild build` against the SwiftPM-generated scheme compiles the
+#     raw executable but never wraps it into a proper .app bundle (no
+#     Owned.app anywhere in DerivedData - just a bare Mach-O binary plus a
+#     loose resource bundle).
+#   - `xcodebuild archive` against the same scheme "succeeds" but never
+#     populates Products/Applications or ApplicationProperties in the
+#     resulting .xcarchive, under either manual or automatic signing - so
+#     `xcodebuild -exportArchive` can never work; it fails with
+#     "IDEDistributionMethodManager ... Unknown Distribution Error" no
+#     matter what ExportOptions.plist says.
+#   - This matches what other people hit doing the same thing: SwiftPM's
+#     .iOSApplication product is meant to be opened and archived from
+#     Xcode's own GUI, not driven headlessly via `xcodebuild` on CI.
 #
-# The workaround: skip archive/export entirely. Do a plain `xcodebuild
-# build` with Automatic signing driven by an App Store Connect API key (so
-# it's non-interactive, no Apple ID/2FA prompt), find the signed .app under
-# DerivedData, hand-package it into a Payload/*.ipa, and upload that
-# directly with altool. See TESTFLIGHT.md for the one-time secrets setup
-# this depends on.
+# The fix: keep all the Swift source exactly as-is (it's totally ordinary
+# SwiftUI/UIKit code with no SwiftPM-specific dependencies), and generate a
+# real, standard .xcodeproj from it at build time with XcodeGen (see
+# project.yml in the repo root). That gives `xcodebuild archive` /
+# `-exportArchive` the normal project structure they expect, which is the
+# well-documented, widely-used path for iOS TestFlight CI.
 
 on:
   push:
@@ -46,16 +52,13 @@ jobs:
         with:
           xcode-version: latest-stable
 
-      # Package.swift ships with a placeholder team identifier (it's not
-      # secret, but there's no reason to hardcode a real one into a
-      # publicly-diffable manifest either). This swaps in the real value
-      # from the APPLE_TEAM_ID secret at build time, every build.
-      - name: Set the real Apple Team ID into Package.swift
-        env:
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Owned.xcodeproj from project.yml
         run: |
-          sed -i '' "s/REPLACE_WITH_APPLE_TEAM_ID/$APPLE_TEAM_ID/" Package.swift
-          grep teamIdentifier Package.swift
+          xcodegen generate
+          ls -la Owned.xcodeproj
 
       - name: Set up App Store Connect API key
         env:
@@ -66,18 +69,20 @@ jobs:
           echo "$API_PRIVATE_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/private_keys/AuthKey_${API_KEY_ID}.p8"
           echo "AUTH_KEY_PATH=$RUNNER_TEMP/private_keys/AuthKey_${API_KEY_ID}.p8" >> "$GITHUB_ENV"
 
-      - name: Build signed app
+      # Automatic signing driven by the App Store Connect API key so this is
+      # fully non-interactive (no Apple ID / 2FA prompt). Xcode creates or
+      # reuses whatever certificate + provisioning profile it needs on its
+      # own, using that API key's account access.
+      - name: Archive
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
           API_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
         run: |
-          echo "----- signing-relevant build settings before build -----"
-          xcodebuild -scheme Owned -configuration Release -showBuildSettings 2>/dev/null | grep -E "CODE_SIGN|DEVELOPMENT_TEAM|PROVISIONING_PROFILE|PRODUCT_BUNDLE_IDENTIFIER" || true
-
-          xcodebuild -scheme Owned \
+          xcodebuild -project Owned.xcodeproj \
+            -scheme Owned \
             -configuration Release \
-            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            -archivePath "$RUNNER_TEMP/Owned.xcarchive" \
             -destination "generic/platform=iOS" \
             -allowProvisioningUpdates \
             -authenticationKeyPath "$AUTH_KEY_PATH" \
@@ -85,43 +90,51 @@ jobs:
             -authenticationKeyIssuerID "$API_ISSUER_ID" \
             CODE_SIGN_STYLE=Automatic \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            build
+            archive
 
-          echo "----- locating built .app -----"
-          APP_PATH=$(find "$RUNNER_TEMP/DerivedData/Build/Products" -maxdepth 2 -name "*.app" 2>/dev/null | head -n 1)
-          if [ -z "$APP_PATH" ]; then
-            echo "No .app found at the usual depth - searching all of DerivedData as a fallback..."
-            APP_PATH=$(find "$RUNNER_TEMP/DerivedData" -iname "*.app" -type d 2>/dev/null | head -n 1)
-          fi
-          echo "App path: $APP_PATH"
-          if [ -z "$APP_PATH" ]; then
-            echo "::error::Could not find any built .app anywhere under DerivedData - see the full Products tree below."
-            echo "----- full listing of DerivedData/Build/Products (depth 4) -----"
-            find "$RUNNER_TEMP/DerivedData/Build/Products" -maxdepth 4 2>/dev/null
-            exit 1
-          fi
-          echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
-
-          echo "----- codesign -dvvv on the built .app -----"
-          codesign -dvvv "$APP_PATH"
-
-          echo "----- embedded.mobileprovision inside the built .app (decoded) -----"
-          if [ -f "$APP_PATH/embedded.mobileprovision" ]; then
-            security cms -D -i "$APP_PATH/embedded.mobileprovision" > "$RUNNER_TEMP/embedded_profile.plist" 2>/dev/null && /usr/libexec/PlistBuddy -c "Print :Name" "$RUNNER_TEMP/embedded_profile.plist" || echo "FAILED TO DECODE embedded.mobileprovision"
-          else
-            echo "::error::No embedded.mobileprovision found in the built .app - it will not be installable/uploadable."
-            exit 1
-          fi
-
-      - name: Package .ipa
+      - name: Inspect archive metadata
         run: |
-          PAYLOAD_DIR="$RUNNER_TEMP/Payload"
-          rm -rf "$PAYLOAD_DIR"
-          mkdir -p "$PAYLOAD_DIR"
-          cp -R "$APP_PATH" "$PAYLOAD_DIR/"
-          (cd "$RUNNER_TEMP" && zip -qr "Owned.ipa" "Payload")
-          echo "----- resulting .ipa -----"
-          ls -la "$RUNNER_TEMP/Owned.ipa"
+          echo "----- archive Info.plist (full) -----"
+          /usr/libexec/PlistBuddy -c "Print" "$RUNNER_TEMP/Owned.xcarchive/Info.plist" || echo "FAILED TO READ ARCHIVE Info.plist"
+          echo "----- embedded.mobileprovision inside the archived .app (decoded) -----"
+          APP_PATH=$(find "$RUNNER_TEMP/Owned.xcarchive/Products/Applications" -maxdepth 1 -name "*.app" 2>/dev/null | head -n 1)
+          echo "App path: $APP_PATH"
+          if [ -n "$APP_PATH" ] && [ -f "$APP_PATH/embedded.mobileprovision" ]; then
+            security cms -D -i "$APP_PATH/embedded.mobileprovision" > "$RUNNER_TEMP/embedded_profile.plist" 2>/dev/null && /usr/libexec/PlistBuddy -c "Print" "$RUNNER_TEMP/embedded_profile.plist" || echo "FAILED TO DECODE embedded.mobileprovision"
+          else
+            echo "No embedded.mobileprovision found in the archived .app"
+          fi
+
+      - name: Write export options
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store</string>
+            <key>teamID</key>
+            <string>${{ secrets.APPLE_TEAM_ID }}</string>
+            <key>signingStyle</key>
+            <string>automatic</string>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Export .ipa
+        env:
+          API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Owned.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$AUTH_KEY_PATH" \
+            -authenticationKeyID "$API_KEY_ID" \
+            -authenticationKeyIssuerID "$API_ISSUER_ID"
 
       - name: Upload to TestFlight
         env:
@@ -130,5 +143,6 @@ jobs:
         run: |
           mkdir -p ~/.appstoreconnect/private_keys
           cp "$AUTH_KEY_PATH" "$HOME/.appstoreconnect/private_keys/"
-          xcrun altool --upload-app -f "$RUNNER_TEMP/Owned.ipa" -t ios \
+          IPA_PATH=$(find "$RUNNER_TEMP/export" -name "*.ipa" | head -n 1)
+          xcrun altool --upload-app -f "$IPA_PATH" -t ios \
             --apiKey "$API_KEY_ID" --apiIssuer "$API_ISSUER_ID"
