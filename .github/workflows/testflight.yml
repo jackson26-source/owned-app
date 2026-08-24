@@ -49,6 +49,17 @@ name: Build and upload Owned to TestFlight
 # "Upload to TestFlight" step below also greps altool's own output for
 # failure text and fails the step explicitly when it finds it, so a bad
 # upload can never again show up as a green checkmark.
+#
+# SECOND gotcha (found 2026-08-24, same day): the grep above only checked
+# for the literal text "UPLOAD FAILED", but a later rejection - "Failed to
+# upload package." / "The bundle version must be higher than the previously
+# uploaded version" - did not contain that exact phrase, so it slipped
+# through and the step went green again while the upload silently failed.
+# Two fixes: (1) the grep now also matches "ERROR:" and "Failed to upload",
+# which cover every altool failure format seen so far; (2) the Archive step
+# now overrides CURRENT_PROJECT_VERSION with $GITHUB_RUN_NUMBER on every
+# build, since App Store Connect rejects re-uploading the same build number
+# and project.yml's hardcoded "1" never changes on its own.
 
 on:
   push:
@@ -173,6 +184,7 @@ jobs:
             CODE_SIGN_IDENTITY="Apple Distribution" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             PROVISIONING_PROFILE_SPECIFIER="Owned App Store" \
+            CURRENT_PROJECT_VERSION=$GITHUB_RUN_NUMBER \
             archive
 
       - name: Inspect archive metadata
@@ -243,7 +255,7 @@ jobs:
           ALTOOL_EXIT=${PIPESTATUS[0]}
           set -e
 
-          if [ "$ALTOOL_EXIT" -ne 0 ] || grep -q "UPLOAD FAILED" "$RUNNER_TEMP/altool_upload.log"; then
+          if [ "$ALTOOL_EXIT" -ne 0 ] || grep -qE "UPLOAD FAILED|ERROR:|Failed to upload" "$RUNNER_TEMP/altool_upload.log"; then
             echo "::error::altool reported a failed upload (exit code $ALTOOL_EXIT). App Store Connect did NOT accept this build - see the validation error above for the specific reason."
             exit 1
           fi
