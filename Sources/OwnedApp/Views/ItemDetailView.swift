@@ -5,6 +5,7 @@ struct ItemDetailView: View {
     @EnvironmentObject private var itemStore: ItemStore
     @State private var receiptImage: UIImage?
     @State private var category: ItemCategory?
+    @State private var claimPackURL: URL?
 
     var body: some View {
         List {
@@ -45,6 +46,19 @@ struct ItemDetailView: View {
                     Text(item.notes)
                 }
             }
+
+            Section {
+                if let claimPackURL {
+                    ShareLink(item: claimPackURL) {
+                        Label("Share claim pack (PDF)", systemImage: "doc.richtext")
+                    }
+                } else {
+                    Label("Preparing claim pack…", systemImage: "doc.richtext")
+                        .foregroundStyle(.secondary)
+                }
+            } footer: {
+                Text("Bundles this item's details, deadlines, and receipt photo into a PDF you can attach to a return or warranty claim.")
+            }
         }
         .navigationTitle(item.name)
         .task {
@@ -52,6 +66,7 @@ struct ItemDetailView: View {
                 receiptImage = PhotoStorage.load(filename: filename)
             }
             category = item.category
+            prepareClaimPack()
         }
         .onChange(of: category) { _, newValue in
             guard newValue != item.category else { return }
@@ -97,6 +112,19 @@ struct ItemDetailView: View {
         else { return }
         WalletPassService.shared.presentAddPass(for: item, deadline: deadline, from: root)
         itemStore.markWalletPassAdded(itemID: item.id, deadlineID: deadline.id)
+    }
+
+    private func prepareClaimPack() {
+        let data = ClaimPackGenerator.makePDF(for: item, receiptImage: receiptImage)
+        let safeName = item.name.replacingOccurrences(of: "/", with: "-")
+        let filename = safeName.isEmpty ? "claim-pack.pdf" : "\(safeName)-claim-pack.pdf"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+        do {
+            try data.write(to: url, options: .atomic)
+            claimPackURL = url
+        } catch {
+            claimPackURL = nil
+        }
     }
 }
 
