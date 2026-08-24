@@ -6,6 +6,7 @@ struct ItemDetailView: View {
     @State private var receiptImage: UIImage?
     @State private var category: ItemCategory?
     @State private var claimPackURL: URL?
+    @State private var resolvedAt: Date?
 
     var body: some View {
         List {
@@ -41,6 +42,24 @@ struct ItemDetailView: View {
                 }
             }
 
+            Section("Outcome") {
+                if let resolvedAt {
+                    Label {
+                        Text("Returned or claimed on \(resolvedAt.formatted(date: .abbreviated, time: .omitted))")
+                    } icon: {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    }
+                    Button("Undo", role: .destructive) {
+                        markResolved(nil)
+                    }
+                } else {
+                    Button("Mark as returned or claimed") {
+                        markResolved(Date())
+                    }
+                }
+            }
+
             if !item.notes.isEmpty {
                 Section("Notes") {
                     Text(item.notes)
@@ -66,6 +85,7 @@ struct ItemDetailView: View {
                 receiptImage = PhotoStorage.load(filename: filename)
             }
             category = item.category
+            resolvedAt = item.resolvedAt
             prepareClaimPack()
         }
         .onChange(of: category) { _, newValue in
@@ -112,6 +132,13 @@ struct ItemDetailView: View {
         else { return }
         WalletPassService.shared.presentAddPass(for: item, deadline: deadline, from: root)
         itemStore.markWalletPassAdded(itemID: item.id, deadlineID: deadline.id)
+    }
+
+    private func markResolved(_ date: Date?) {
+        var updated = item
+        updated.resolvedAt = date
+        itemStore.update(updated)
+        resolvedAt = date
     }
 
     private func prepareClaimPack() {

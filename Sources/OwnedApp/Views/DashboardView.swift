@@ -15,6 +15,12 @@ struct DashboardView: View {
                 } else {
                     List {
                         Section {
+                            heroStat
+                        }
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+
+                        Section {
                             statRow(label: "Tracked purchases", value: "\(itemStore.items.count)")
                             if let totalValue {
                                 statRow(label: "Total value", value: totalValue)
@@ -34,11 +40,38 @@ struct DashboardView: View {
                                 }
                             }
                         }
+
+                        if lifetimeProtectedCount > 0 {
+                            Section("Lifetime") {
+                                statRow(label: "Returns and claims resolved", value: "\(lifetimeProtectedCount)")
+                                if let lifetimeProtectedValue {
+                                    statRow(label: "Money protected", value: lifetimeProtectedValue)
+                                }
+                            }
+                        }
                     }
                 }
             }
             .navigationTitle("Dashboard")
         }
+    }
+
+    // MARK: - Hero
+
+    /// The headline stat at the top of the dashboard: how much money is
+    /// currently sitting inside an open return window or active warranty
+    /// — the thing Owned exists to protect, front and center rather than
+    /// buried in a list row like every other number here.
+    private var heroStat: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("PROTECTED RIGHT NOW")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text(protectedValueDisplay ?? "$0")
+                .font(.system(size: 40, weight: .bold, design: .rounded))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 12)
     }
 
     // MARK: - Stats
@@ -49,10 +82,40 @@ struct DashboardView: View {
     private var totalValue: String? {
         let cents = itemStore.items.compactMap(\.priceCents).reduce(0, +)
         guard cents > 0 else { return nil }
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencyCode = Locale.current.currency?.identifier ?? "USD"
-        return formatter.string(from: NSNumber(value: Double(cents) / 100.0))
+        return currency(cents)
+    }
+
+    /// Sum of priceCents for items that haven't expired yet — this is the
+    /// value still "protected" by an open return window or active
+    /// warranty, as opposed to totalValue, which counts everything ever
+    /// tracked regardless of whether its clock has already run out.
+    private var protectedValue: Int {
+        itemStore.items
+            .filter { $0.overallStatus != .expired }
+            .compactMap(\.priceCents)
+            .reduce(0, +)
+    }
+
+    private var protectedValueDisplay: String? {
+        guard protectedValue > 0 else { return nil }
+        return currency(protectedValue)
+    }
+
+    /// How many items someone has actually confirmed as returned or
+    /// successfully claimed under warranty — the "Lifetime" section only
+    /// appears once this is above zero, so an app with no resolved items
+    /// yet doesn't show an empty, premature stat block.
+    private var lifetimeProtectedCount: Int {
+        itemStore.items.filter { $0.resolvedAt != nil }.count
+    }
+
+    private var lifetimeProtectedValue: String? {
+        let cents = itemStore.items
+            .filter { $0.resolvedAt != nil }
+            .compactMap(\.priceCents)
+            .reduce(0, +)
+        guard cents > 0 else { return nil }
+        return currency(cents)
     }
 
     private var categoryBreakdown: [(category: ItemCategory, count: Int)] {
@@ -61,6 +124,16 @@ struct DashboardView: View {
         }, by: { $0.category })
         return grouped.map { (category: $0.key, count: $0.value.count) }
             .sorted { $0.count > $1.count }
+    }
+
+    /// Shared currency formatter used by every dollar figure on this
+    /// screen, so the hero stat and the list rows below it always agree
+    /// on locale and formatting.
+    private func currency(_ cents: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = Locale.current.currency?.identifier ?? "USD"
+        return formatter.string(from: NSNumber(value: Double(cents) / 100.0)) ?? "$0"
     }
 
     private func statRow(label: String, value: String) -> some View {

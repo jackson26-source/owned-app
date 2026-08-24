@@ -134,6 +134,14 @@ struct TrackedItem: Codable, Identifiable, Hashable {
     /// decodes to nil for free, no migration step needed.
     var category: ItemCategory?
 
+    /// When the person marked this item as returned or successfully
+    /// claimed under warranty — nil until then. This is what the
+    /// dashboard's lifetime "money protected" stat counts: an item only
+    /// contributes once someone has actually confirmed the outcome, not
+    /// just because its window happened to pass. Optional for the same
+    /// Codable back-compat reason as the category field above.
+    var resolvedAt: Date?
+
     var priceDisplay: String? {
         guard let priceCents else { return nil }
         let formatter = NumberFormatter()

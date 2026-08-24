@@ -258,8 +258,15 @@ struct ItemListView: View {
     private func row(for item: TrackedItem) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text(item.name)
-                    .font(.body.weight(.medium))
+                HStack(spacing: 4) {
+                    Text(item.name)
+                        .font(.body.weight(.medium))
+                    if item.resolvedAt != nil {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                    }
+                }
                 HStack(spacing: 6) {
                     Text(item.retailer)
                     if let price = item.priceDisplay {
