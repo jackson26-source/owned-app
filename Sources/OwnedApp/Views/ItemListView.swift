@@ -105,6 +105,7 @@ struct ItemListView: View {
                         .listStyle(.plain)
                         .listRowSeparatorTint(Theme.border)
                         .themedScrollBackground()
+                        .monospacedDigit()
                     }
                 }
             }
@@ -293,7 +294,7 @@ struct ItemListView: View {
                     if item.resolvedAt != nil {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.caption)
-                            .foregroundStyle(.green)
+                            .foregroundStyle(Theme.success)
                     }
                 }
                 HStack(spacing: 6) {

@@ -77,6 +77,7 @@ struct AddItemView: View {
                 .listRowBackground(Theme.panel)
             }
             .themedScrollBackground()
+            .monospacedDigit()
             .navigationTitle("Add purchase")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

@@ -32,6 +32,7 @@ struct TimelineView: View {
                     .listStyle(.plain)
                     .listRowSeparatorTint(Theme.border)
                     .themedScrollBackground()
+                    .monospacedDigit()
                 }
             }
             .background(Theme.background)
@@ -96,11 +97,17 @@ struct TimelineView: View {
         }
     }
 
+    /// Functional, not decorative, matching `StatusBadge`'s convention:
+    /// a plain active deadline stays neutral (in a dense chronological
+    /// feed, coloring every row green would just be noise), expiring
+    /// soon gets the accent's "pay attention" tone, and expired — the
+    /// one row that's actually bad news — gets danger-red instead of the
+    /// same faded grey a perfectly fine item gets.
     private func colorForStatus(_ status: ItemStatus) -> Color {
         switch status {
         case .active: return Theme.textFaint
         case .expiringSoon: return Theme.accent
-        case .expired: return Theme.textFaint
+        case .expired: return Theme.danger
         }
     }
 }

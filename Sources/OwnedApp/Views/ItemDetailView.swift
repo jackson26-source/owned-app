@@ -48,24 +48,25 @@ struct ItemDetailView: View {
 
             Section {
                 if let resolvedAt {
-                    Label {
-                        Text("Returned or claimed on \(resolvedAt.formatted(date: .abbreviated, time: .omitted))")
-                            .foregroundStyle(Theme.textPrimary)
-                    } icon: {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
+                    HStack {
+                        Label {
+                            Text("Returned or claimed on \(resolvedAt.formatted(date: .abbreviated, time: .omitted))")
+                                .foregroundStyle(Theme.textPrimary)
+                        } icon: {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(Theme.success)
+                        }
+                        Spacer()
+                        Theme.StampBadge(text: "Resolved", color: Theme.success, rotation: -8)
                     }
                     Button("Undo", role: .destructive) {
                         markResolved(nil)
                     }
                 } else {
-                    Button("Mark as returned or claimed") {
+                    TearToResolveButton {
                         markResolved(Date())
                     }
-                    .buttonStyle(.pill)
-                    .listRowInsets(EdgeInsets())
-                    .padding(.vertical, 8)
-                    .frame(maxWidth: .infinity, alignment: .center)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 }
             } header: {
                 Theme.sectionHeader("Outcome")
@@ -100,6 +101,7 @@ struct ItemDetailView: View {
         }
         .listRowSeparatorTint(Theme.border)
         .themedScrollBackground()
+        .monospacedDigit()
         .navigationTitle(item.name)
         .task {
             if let filename = item.receiptPhotoFilename {

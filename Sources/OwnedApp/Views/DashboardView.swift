@@ -53,6 +53,7 @@ struct DashboardView: View {
                             }
                         }
                     }
+                    .monospacedDigit()
                 }
             }
             .navigationTitle("Dashboard")
@@ -69,17 +70,20 @@ struct DashboardView: View {
     /// — the thing Owned exists to protect, front and center rather than
     /// buried in a list row like every other number here. Styled after
     /// the marketing site's own hero treatment: a small monospace
-    /// eyebrow label over a large serif number in the accent color,
-    /// set on a bordered panel card.
+    /// eyebrow label over a large double-struck serif number in the
+    /// accent color, set on a bordered panel card — the one figure in
+    /// the app that earns the double-strike ink treatment.
     private var heroStat: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("PROTECTED RIGHT NOW")
                 .font(Theme.eyebrow())
                 .tracking(0.6)
                 .foregroundStyle(Theme.textFaint)
-            Text(protectedValueDisplay ?? "$0")
-                .font(Theme.serif(44))
-                .foregroundStyle(Theme.accent)
+            Theme.DoubleStrikeText(
+                text: protectedValueDisplay ?? "$0",
+                font: Theme.serif(44),
+                color: Theme.accent
+            )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
@@ -210,11 +214,16 @@ private enum StatusSummary: CaseIterable, Identifiable {
         }
     }
 
+    /// Functional, not decorative — matches `StatusBadge`'s own color
+    /// convention exactly: green only ever means "active and fine,"
+    /// accent means "needs attention soon," and this expired row is the
+    /// one place danger-red actually belongs, not the faded grey it used
+    /// to share with "nothing to see here."
     var color: Color {
         switch self {
-        case .active: return .green
+        case .active: return Theme.success
         case .expiringSoon: return Theme.accent
-        case .expired: return Theme.textFaint
+        case .expired: return Theme.danger
         }
     }
 
