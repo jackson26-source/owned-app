@@ -26,12 +26,16 @@ name: Generate App Store screenshots
 # runner's simulator set, the "Show available simulators" step will list
 # what does - swap the name in the destination string below and re-run.
 #
-# xcresulttool's exact CLI surface changes between Xcode versions (the
-# old --legacy flag is deprecated), so the extraction step tries the
-# modern "get test-results tests" form first and falls back to --legacy.
-# It also always writes the raw JSON it parsed as a debug artifact, so if
-# a future Xcode version changes the schema again, the fix is a quick
-# look at that file rather than a guess.
+# Extraction note (fixed 2026-08-25): earlier versions of this workflow
+# hand-walked the JSON from `xcresulttool get test-results tests` looking
+# for a "payloadRef" field to find screenshot attachments. That command
+# only ever returns the coarse pass/fail test tree - no attachment data
+# lives there in Xcode 16's schema - so the walk always found zero
+# attachments and the job silently uploaded only a debug JSON, no PNGs.
+# Fixed by switching to xcresulttool's dedicated `export attachments`
+# subcommand (Xcode 16+), which is built for exactly this and writes
+# every XCTAttachment plus a manifest.json describing which file belongs
+# to which test/attachment name.
 
 on:
   workflow_dispatch: {}
@@ -75,69 +79,68 @@ jobs:
       - name: Extract screenshots from .xcresult
         run: |
           mkdir -p "$RUNNER_TEMP/screenshots-out"
-          python3 - "$RUNNER_TEMP/Screenshots.xcresult" "$RUNNER_TEMP/screenshots-out" << 'PYEOF'
-          import json, subprocess, sys, os
 
-          xcresult, out_dir = sys.argv[1], sys.argv[2]
+          # Dedicated export path for XCTAttachment files (Xcode 16+). No
+          # --test-id means "every attachment in the bundle" - we only ran
+          # one test, so that's exactly the screenshots we want.
+          xcrun xcresulttool export attachments \
+            --path "$RUNNER_TEMP/Screenshots.xcresult" \
+            --output-path "$RUNNER_TEMP/screenshots-out"
 
-          def run(*args):
-              return subprocess.run(list(args), capture_output=True, text=True, check=True).stdout
+          echo "----- raw export output -----"
+          ls -la "$RUNNER_TEMP/screenshots-out"
 
-          # Xcode 16+ ships a newer xcresulttool CLI with no --legacy
-          # flag. Try that first since this job pins "latest-stable"
-          # Xcode; fall back to the legacy CLI for older toolchains.
-          mode = "modern"
-          try:
-              raw = run("xcrun", "xcresulttool", "get", "test-results", "tests",
-                        "--path", xcresult, "--format", "json")
-          except subprocess.CalledProcessError:
-              mode = "legacy"
-              raw = run("xcrun", "xcresulttool", "get", "--legacy",
-                        "--path", xcresult, "--format", "json")
+          # Keep the coarse pass/fail tree as a debug artifact too - cheap
+          # insurance if a future Xcode version changes the export format
+          # again; the fix is then a quick look at this file rather than a
+          # guess.
+          xcrun xcresulttool get test-results tests \
+            --path "$RUNNER_TEMP/Screenshots.xcresult" --format json \
+            > "$RUNNER_TEMP/screenshots-out/_debug_test_results.json" || true
 
-          data = json.loads(raw)
-          with open(os.path.join(out_dir, "_debug_test_results.json"), "w") as f:
-              json.dump(data, f, indent=2)
+          # Rename exported files to something readable using manifest.json,
+          # if xcresulttool wrote one (e.g. "testName_attachmentName.png"
+          # instead of an opaque generated name).
+          python3 - "$RUNNER_TEMP/screenshots-out" << 'PYEOF'
+          import json, os, re, sys
 
-          attachments = []
+          out_dir = sys.argv[1]
+          manifest_path = os.path.join(out_dir, "manifest.json")
+          if not os.path.exists(manifest_path):
+              print("No manifest.json found - leaving exported filenames as-is")
+              sys.exit(0)
 
-          def walk(node):
-              if isinstance(node, dict):
-                  name = node.get("name")
-                  if name is None and isinstance(node.get("_name"), dict):
-                      name = node["_name"].get("_value")
-                  payload_ref = node.get("payloadRef") or node.get("_payloadRef")
-                  if payload_ref:
-                      ref_id = None
-                      if isinstance(payload_ref, dict):
-                          ref_id = payload_ref.get("id")
-                          if ref_id is None and isinstance(payload_ref.get("_id"), dict):
-                              ref_id = payload_ref["_id"].get("_value")
-                      if ref_id and name:
-                          attachments.append((str(name), str(ref_id)))
-                  for value in node.values():
-                      walk(value)
-              elif isinstance(node, list):
-                  for item in node:
-                      walk(item)
+          with open(manifest_path) as f:
+              manifest = json.load(f)
 
-          walk(data)
-          print("Found " + str(len(attachments)) + " candidate attachments (mode=" + mode + ")")
+          def safe(s):
+              return re.sub(r"[^A-Za-z0-9._-]+", "_", s).strip("_")
 
-          for name, ref_id in attachments:
-              safe_name = "".join(c if c.isalnum() or c in "-_." else "_" for c in name)
-              out_path = os.path.join(out_dir, safe_name + ".png")
-              args = ["xcrun", "xcresulttool", "export", "object",
-                      "--path", xcresult, "--id", ref_id,
-                      "--type", "file", "--output-path", out_path]
-              if mode == "legacy":
-                  args.insert(3, "--legacy")
-              try:
-                  subprocess.run(args, check=True, capture_output=True, text=True)
-                  print("Exported " + out_path)
-              except subprocess.CalledProcessError as e:
-                  print("Failed to export " + name + " (" + ref_id + "): " + e.stderr)
+          # The manifest's exact key names have shifted across Xcode point
+          # releases, so probe a few plausible spots rather than hard-coding
+          # one schema.
+          entries = manifest if isinstance(manifest, list) else manifest.get("attachments", [])
+          for entry in entries:
+              exported_name = (
+                  entry.get("exportedFileName")
+                  or entry.get("filename")
+                  or entry.get("fileName")
+              )
+              if not exported_name:
+                  continue
+              src = os.path.join(out_dir, exported_name)
+              if not os.path.exists(src):
+                  continue
+              test_name = entry.get("testIdentifier") or entry.get("testName") or ""
+              attachment_name = entry.get("name") or entry.get("attachmentName") or ""
+              ext = os.path.splitext(exported_name)[1]
+              label = safe(f"{test_name}_{attachment_name}") or safe(exported_name)
+              dst = os.path.join(out_dir, f"{label}{ext}")
+              if dst != src and not os.path.exists(dst):
+                  os.rename(src, dst)
+                  print(f"Renamed {exported_name} -> {os.path.basename(dst)}")
           PYEOF
+
           echo "----- contents of screenshots-out -----"
           ls -la "$RUNNER_TEMP/screenshots-out"
 
