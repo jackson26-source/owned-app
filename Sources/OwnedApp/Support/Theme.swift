@@ -54,7 +54,7 @@ enum Theme {
     /// mode so it still reads clearly against a dark ground.
     static let accent = Color(
         light: UIColor(red: 0.659, green: 0.275, blue: 0.118, alpha: 1), // #A8461E
-        dark: UIColor(red: 0.831, green: 0.408, blue: 0.243, alpha: 1)   // #D4683E
+        dark: UIColor(red: 0.831, green: 0.408, blue: 0.243, alpha: 1) // #D4683E
     )
 
     /// Text drawn on top of a solid `accent` fill (the pill button label,
@@ -65,13 +65,40 @@ enum Theme {
         dark: UIColor(red: 0.086, green: 0.078, blue: 0.067, alpha: 1)
     )
 
+    /// Functional "safe" green — reserved for states that actually mean
+    /// something is fine or finished: an active, un-expired deadline, or
+    /// a confirmed return/claim. Deliberately separate from `accent`
+    /// (the app's brand color, not a status signal) and muted toward the
+    /// same warm palette as everything else rather than a saturated
+    /// system green, so it reads as "this app's green," not iOS's.
+    static let success = Color(
+        light: UIColor(red: 0.247, green: 0.420, blue: 0.200, alpha: 1), // #3F6B33
+        dark: UIColor(red: 0.561, green: 0.702, blue: 0.478, alpha: 1) // #8FB37A
+    )
+
+    /// Functional "danger" red — reserved for the one state that's
+    /// actually bad news: a deadline that has already expired. Before
+    /// this token existed, an expired item faded to `textFaint`, the
+    /// same muted grey used for "unimportant" — the opposite of what an
+    /// expired return window or warranty should signal. A brick-red ink
+    /// tone, not a saturated system red, to stay in the same warm family
+    /// as `success` and `accent`.
+    static let danger = Color(
+        light: UIColor(red: 0.604, green: 0.200, blue: 0.141, alpha: 1), // #9A3324
+        dark: UIColor(red: 0.851, green: 0.482, blue: 0.404, alpha: 1) // #D97B67
+    )
+
     // MARK: - Type
 
-    /// The homepage sets headlines in Georgia; Georgia ships as a system
-    /// font on iOS, so the same serif carries straight into the app with
-    /// no font file to bundle.
-    static func serif(_ size: CGFloat) -> Font {
-        .custom("Georgia-Bold", size: size)
+    /// The homepage sets headlines in Georgia. The app draws them from
+    /// the system's built-in serif design (San Francisco's serif
+    /// variant) rather than pinning to the literal "Georgia-Bold" font
+    /// name — the system design tracks Dynamic Type sizing and responds
+    /// to any weight passed in, where a hardcoded named font does
+    /// neither. Still reads as a serif headline face everywhere it's
+    /// used; just a more native way to ask for one.
+    static func serif(_ size: CGFloat, weight: Font.Weight = .bold) -> Font {
+        .system(size: size, weight: weight, design: .serif)
     }
 
     /// Small monospace "eyebrow" labels, matching the site's --mono
@@ -89,6 +116,76 @@ enum Theme {
             .font(Theme.eyebrow(11))
             .tracking(0.6)
             .foregroundStyle(Theme.textFaint)
+    }
+
+    /// The UIKit equivalent of `serif(_:)`, for the nav-bar appearance
+    /// proxies below (which need a `UIFont`, not a SwiftUI `Font`). Asks
+    /// the system for the same serif design rather than a named font, so
+    /// nav titles stay in step with whatever `serif(_:)` renders in the
+    /// rest of the app.
+    private static func uiSerifBold(size: CGFloat) -> UIFont {
+        let base = UIFont.boldSystemFont(ofSize: size)
+        guard let serifDescriptor = base.fontDescriptor.withDesign(.serif) else { return base }
+        return UIFont(descriptor: serifDescriptor, size: size)
+    }
+
+    // MARK: - Signature details
+
+    /// A small ink-stamp-style badge, standing in for a plain pill on
+    /// the states final enough that a real paper receipt or claim form
+    /// would get an actual rubber stamp: an expired deadline, a
+    /// resolved item. Deliberately imperfect — a slight rotation and a
+    /// heavier double outline — so it reads as something physically
+    /// stamped onto the page rather than another smooth iOS capsule.
+    struct StampBadge: View {
+        let text: String
+        let color: Color
+        var rotation: Double = -6
+
+        var body: some View {
+            Text(text.uppercased())
+                .font(.system(size: 11, weight: .heavy, design: .serif))
+                .tracking(1.4)
+                .foregroundStyle(color)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 3)
+                        .stroke(color, lineWidth: 1.5)
+                        .padding(1.5)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 3)
+                        .stroke(color, lineWidth: 1)
+                )
+                .rotationEffect(.degrees(rotation))
+        }
+    }
+
+    /// A headline treatment mimicking a slightly-misaligned double-struck
+    /// stamp or typewriter hit: the same text drawn twice, one nearly
+    /// opaque and one faint, offset by a fraction of a point. Reserved
+    /// for a single, high-impact figure (the Dashboard's hero stat)
+    /// rather than every headline in the app — the way a real receipt
+    /// saves its heaviest ink for the total, not the line items.
+    struct DoubleStrikeText: View {
+        let text: String
+        var font: Font
+        var color: Color
+
+        var body: some View {
+            ZStack {
+                Text(text)
+                    .font(font)
+                    .monospacedDigit()
+                    .foregroundStyle(color.opacity(0.35))
+                    .offset(x: 0.8, y: 0.6)
+                Text(text)
+                    .font(font)
+                    .monospacedDigit()
+                    .foregroundStyle(color)
+            }
+        }
     }
 
     // MARK: - Buttons
@@ -127,8 +224,8 @@ enum Theme {
         let panelColor = UIColor(panel)
         let accentColor = UIColor(accent)
         let primaryText = UIColor(textPrimary)
-        let titleFont = UIFont(name: "Georgia-Bold", size: 17) ?? .boldSystemFont(ofSize: 17)
-        let largeTitleFont = UIFont(name: "Georgia-Bold", size: 28) ?? .boldSystemFont(ofSize: 28)
+        let titleFont = uiSerifBold(size: 17)
+        let largeTitleFont = uiSerifBold(size: 28)
 
         let navAppearance = UINavigationBarAppearance()
         navAppearance.configureWithOpaqueBackground()
