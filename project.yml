@@ -40,6 +40,9 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         UIDeviceFamily:
           - 1
+        CFBundleURLTypes:
+          - CFBundleURLSchemes:
+              - dev.macless.owned.oauth
     settings:
       base:
         PRODUCT_NAME: Owned
