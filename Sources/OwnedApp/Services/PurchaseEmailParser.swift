@@ -120,7 +120,7 @@ enum PurchaseEmailParser {
             .components(separatedBy: "<").first?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let hint = (displayNamePart?.isEmpty == false ? displayNamePart : nil) ?? "Online store"
-        return .shopifyGeneric(storeHint: hint!)
+        return .shopifyGeneric(storeHint: hint)
     }
 
     // MARK: - Field extraction
