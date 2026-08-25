@@ -2,7 +2,8 @@ import SwiftUI
 
 /// The small colored pill that makes an item's urgency legible at a
 /// glance in the list — no need to open the item to know if it needs
-/// attention today.
+/// attention today. An expired deadline gets a rubber-stamp treatment
+/// instead of a plain pill — the one state final enough to earn it.
 struct StatusBadge: View {
     let deadline: TrackedDeadline?
 
@@ -11,13 +12,18 @@ struct StatusBadge: View {
             let status = deadline.status()
             let days = deadline.daysRemaining()
 
-            Text(label(status: status, days: days))
-                .font(.caption.weight(.semibold))
-                .padding(.horizontal, 9)
-                .padding(.vertical, 4)
-                .background(color(for: status).opacity(0.16))
-                .foregroundStyle(color(for: status))
-                .clipShape(Capsule())
+            if status == .expired {
+                Theme.StampBadge(text: label(status: status, days: days), color: Theme.danger)
+            } else {
+                Text(label(status: status, days: days))
+                    .font(.caption.weight(.semibold))
+                    .monospacedDigit()
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 4)
+                    .background(color(for: status).opacity(0.16))
+                    .foregroundStyle(color(for: status))
+                    .clipShape(Capsule())
+            }
         } else {
             EmptyView()
         }
@@ -34,11 +40,14 @@ struct StatusBadge: View {
         }
     }
 
+    /// Functional, not decorative: green only ever means "active and
+    /// fine," accent means "needs attention soon," and the expired case
+    /// is drawn as a stamp above rather than through this color at all.
     private func color(for status: ItemStatus) -> Color {
         switch status {
-        case .active: return .green
+        case .active: return Theme.success
         case .expiringSoon: return Theme.accent
-        case .expired: return Theme.textFaint
+        case .expired: return Theme.danger
         }
     }
 }
