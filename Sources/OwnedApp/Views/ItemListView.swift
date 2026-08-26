@@ -73,11 +73,7 @@ struct ItemListView: View {
                         .padding(.top, 8)
                         .padding(.bottom, 4)
 
-                    if usedCategories.count > 1 {
-                        categoryFilterRow
-                            .padding(.bottom, 4)
                     }
-                }
 
                 Group {
                     if itemStore.items.isEmpty {
@@ -127,6 +123,11 @@ struct ItemListView: View {
                 }
                 ToolbarItem(placement: .secondaryAction) {
                     sortMenu
+                }
+                if usedCategories.count > 1 {
+                    ToolbarItem(placement: .secondaryAction) {
+                        filterMenu
+                    }
                 }
             }
             .sheet(isPresented: $isPresentingAddItem) {
@@ -185,12 +186,14 @@ struct ItemListView: View {
         return items
     }
 
-    /// A custom capsule-chip row standing in for a default segmented
-    /// `Picker` — matches the category filter row's own chip styling so
-    /// the two filters read as one consistent control language instead
-    /// of a stock iOS segmented control sitting above a custom row.
-    private var statusFilterRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+/// A custom capsule-chip row standing in for a default segmented
+    /// `Picker`. This is the one filter kept permanently visible — an
+    /// "always" action, in the Obvious/Easy/Possible sense — while
+    /// category filtering (a "sometimes" action for most people's
+    /// purchase counts) lives one tap away behind the toolbar's Filter
+    /// menu instead of a second permanent row competing for space.
+private var statusFilterRow: some View {
+            ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(StatusFilter.allCases) { filter in
                     chip(label: filter.label, isSelected: statusFilter == filter) {
@@ -202,22 +205,19 @@ struct ItemListView: View {
         }
     }
 
-    private var categoryFilterRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                categoryChip(label: "All", systemImage: "square.grid.2x2", isSelected: categoryFilter == nil) {
-                    categoryFilter = nil
-                }
-                ForEach(usedCategories) { category in
-                    categoryChip(label: category.label, systemImage: category.systemImage, isSelected: categoryFilter == category) {
-                        categoryFilter = (categoryFilter == category) ? nil : category
-                    }
-                }
-            }
-            .padding(.horizontal)
+private var filterMenu: some View {
+    Menu {
+        Picker("Category", selection: $categoryFilter) {
+            Text("All categories").tag(ItemCategory?.none)
+            ForEach(usedCategories) { category in
+                                     Label(category.label, systemImage: category.systemImage).tag(ItemCategory?.some(category))
+                                    }
         }
+    } label: {
+        Label("Filter", systemImage: categoryFilter == nil ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
     }
-
+}
+    
     private func chip(label: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(label)
@@ -234,23 +234,7 @@ struct ItemListView: View {
         .buttonStyle(.plain)
     }
 
-    private func categoryChip(label: String, systemImage: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Label(label, systemImage: systemImage)
-                .font(.caption.weight(.medium))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(isSelected ? Theme.accent : Theme.panel)
-                .foregroundStyle(isSelected ? Theme.onAccent : Theme.textDim)
-                .overlay(
-                    Capsule().stroke(isSelected ? Color.clear : Theme.border, lineWidth: 1)
-                )
-                .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var sortMenu: some View {
+private var sortMenu: some View {
         Menu {
             Picker("Sort by", selection: $sortOption) {
                 ForEach(SortOption.allCases) { option in
