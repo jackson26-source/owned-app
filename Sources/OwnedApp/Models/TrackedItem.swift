@@ -6,30 +6,37 @@ import Foundation
 /// at the same time, and later, in Phase 2, a shipping status before
 /// either of those clocks even starts.
 enum TrackedDeadlineKind: String, Codable, CaseIterable, Identifiable {
-case returnWindow
-case warranty
+    case returnWindow
+    case warranty
 
-var id: String { rawValue }
+    var id: String { rawValue }
 
-var label: String {
-switch self {
-case .returnWindow: return "Return window"
-case .warranty: return "Warranty"
-}
-}
+    var label: String {
+        switch self {
+        case .returnWindow: return "Return window"
+        case .warranty: return "Warranty"
+        }
+    }
 }
 
 enum ItemStatus: String, Codable {
-case active
-case expiringSoon
-case expired
+    case active
+    case expiringSoon
+    case expired
 
-/// Days-until-deadline that flips an item into "expiring soon".
-/// 14 days felt right for a first pass — a return window is usually
-/// much shorter than this, so most return items will spend their
-/// whole life in this state, which is the point: they should feel
-/// urgent right away, not just in the final days.
-static let expiringSoonThresholdDays = 14
+    /// Days-until-deadline that flips an item into "expiring soon" — the
+    /// app's one alarm state, meant for genuinely last-chance items only.
+    /// This used to be 14, on purpose: the idea was that a return window
+    /// is usually shorter than that anyway, so most items would spend
+    /// their whole life feeling urgent. Revisited per the app's own
+    /// design-philosophy review — that reads as manufactured urgency,
+    /// working against Owned's actual mission of reducing anxiety about
+    /// deadlines rather than creating it. 3 days keeps the accent-colored
+    /// alarm for when it's actually warranted; everything further out
+    /// shows as calm and "active" (the success color) by default, which
+    /// is also the more honest signal — with two weeks left, there's
+    /// nothing to be anxious about yet.
+    static let expiringSoonThresholdDays = 3
 }
 
 /// Broad purchase categories, used for filtering and for the dashboard's
@@ -37,139 +44,139 @@ static let expiringSoonThresholdDays = 14
 /// a purchase is a nice-to-have, not something Phase 1 should ever block
 /// adding an item over.
 enum ItemCategory: String, Codable, CaseIterable, Identifiable {
-case electronics
-case clothing
-case homeAndKitchen
-case appliances
-case furniture
-case beauty
-case toysAndGames
-case sportsAndOutdoors
-case tools
-case groceries
-case other
+    case electronics
+    case clothing
+    case homeAndKitchen
+    case appliances
+    case furniture
+    case beauty
+    case toysAndGames
+    case sportsAndOutdoors
+    case tools
+    case groceries
+    case other
 
-var id: String { rawValue }
+    var id: String { rawValue }
 
-var label: String {
-switch self {
-case .electronics: return "Electronics"
-case .clothing: return "Clothing"
-case .homeAndKitchen: return "Home & Kitchen"
-case .appliances: return "Appliances"
-case .furniture: return "Furniture"
-case .beauty: return "Beauty"
-case .toysAndGames: return "Toys & Games"
-case .sportsAndOutdoors: return "Sports & Outdoors"
-case .tools: return "Tools"
-case .groceries: return "Groceries"
-case .other: return "Other"
-}
-}
+    var label: String {
+        switch self {
+        case .electronics: return "Electronics"
+        case .clothing: return "Clothing"
+        case .homeAndKitchen: return "Home & Kitchen"
+        case .appliances: return "Appliances"
+        case .furniture: return "Furniture"
+        case .beauty: return "Beauty"
+        case .toysAndGames: return "Toys & Games"
+        case .sportsAndOutdoors: return "Sports & Outdoors"
+        case .tools: return "Tools"
+        case .groceries: return "Groceries"
+        case .other: return "Other"
+        }
+    }
 
-var systemImage: String {
-switch self {
-case .electronics: return "tv"
-case .clothing: return "tshirt"
-case .homeAndKitchen: return "house"
-case .appliances: return "washer"
-case .furniture: return "sofa"
-case .beauty: return "sparkles"
-case .toysAndGames: return "gamecontroller"
-case .sportsAndOutdoors: return "figure.run"
-case .tools: return "wrench.and.screwdriver"
-case .groceries: return "cart"
-case .other: return "shippingbox"
-}
-}
+    var systemImage: String {
+        switch self {
+        case .electronics: return "tv"
+        case .clothing: return "tshirt"
+        case .homeAndKitchen: return "house"
+        case .appliances: return "washer"
+        case .furniture: return "sofa"
+        case .beauty: return "sparkles"
+        case .toysAndGames: return "gamecontroller"
+        case .sportsAndOutdoors: return "figure.run"
+        case .tools: return "wrench.and.screwdriver"
+        case .groceries: return "cart"
+        case .other: return "shippingbox"
+        }
+    }
 }
 
 struct TrackedDeadline: Codable, Identifiable, Hashable {
-var id: UUID = UUID()
-var kind: TrackedDeadlineKind
-var date: Date
+    var id: UUID = UUID()
+    var kind: TrackedDeadlineKind
+    var date: Date
 
-func status(now: Date = Date()) -> ItemStatus {
-let days = Calendar.current.dateComponents([.day], from: now, to: date).day ?? 0
-if date < now {
-return .expired
-} else if days <= ItemStatus.expiringSoonThresholdDays {
-return .expiringSoon
-} else {
-return .active
-}
-}
+    func status(now: Date = Date()) -> ItemStatus {
+        let days = Calendar.current.dateComponents([.day], from: now, to: date).day ?? 0
+        if date < now {
+            return .expired
+        } else if days <= ItemStatus.expiringSoonThresholdDays {
+            return .expiringSoon
+        } else {
+            return .active
+        }
+    }
 
-func daysRemaining(now: Date = Date()) -> Int {
-Calendar.current.dateComponents([.day], from: now, to: date).day ?? 0
-}
+    func daysRemaining(now: Date = Date()) -> Int {
+        Calendar.current.dateComponents([.day], from: now, to: date).day ?? 0
+    }
 }
 
 /// A single tracked purchase. Everything about it lives only on-device —
 /// see ItemStore for the local-only persistence, no account, no cloud sync.
 struct TrackedItem: Codable, Identifiable, Hashable {
-var id: UUID = UUID()
-var name: String
-var retailer: String
-var purchaseDate: Date
-var priceCents: Int?
-var notes: String = ""
+    var id: UUID = UUID()
+    var name: String
+    var retailer: String
+    var purchaseDate: Date
+    var priceCents: Int?
+    var notes: String = ""
 
-/// One item can carry more than one deadline (return window, warranty,
-/// both, or — once Phase 2 lands — neither yet, because it's still
-/// just "ordered, not shipped").
-var deadlines: [TrackedDeadline] = []
+    /// One item can carry more than one deadline (return window, warranty,
+    /// both, or — once Phase 2 lands — neither yet, because it's still
+    /// just "ordered, not shipped").
+    var deadlines: [TrackedDeadline] = []
 
-/// Filename of a locally-stored receipt photo, relative to the app's
-/// Documents directory. Never uploaded anywhere.
-var receiptPhotoFilename: String?
+    /// Filename of a locally-stored receipt photo, relative to the app's
+    /// Documents directory. Never uploaded anywhere.
+    var receiptPhotoFilename: String?
 
-/// Set once the person has confirmed adding a deadline to Apple Wallet
-/// via the notification flow, so we don't ask again for the same one.
-var walletPassAddedForDeadlineIDs: Set<UUID> = []
+    /// Set once the person has confirmed adding a deadline to Apple Wallet
+    /// via the notification flow, so we don't ask again for the same one.
+    var walletPassAddedForDeadlineIDs: Set<UUID> = []
 
-/// Optional — nil means "uncategorized." Declared Optional (rather than
-/// a non-optional with a default) specifically so JSONDecoder can
-/// decode existing saved items that predate this field: a missing key
-/// decodes to nil for free, no migration step needed.
-var category: ItemCategory?
+    /// Optional — nil means "uncategorized." Declared Optional (rather than
+    /// a non-optional with a default) specifically so JSONDecoder can
+    /// decode existing saved items that predate this field: a missing key
+    /// decodes to nil for free, no migration step needed.
+    var category: ItemCategory?
 
-/// When the person marked this item as returned or successfully
-/// claimed under warranty — nil until then. This is what the
-/// dashboard's lifetime "money protected" stat counts: an item only
-/// contributes once someone has actually confirmed the outcome, not
-/// just because its window happened to pass. Optional for the same
-/// Codable back-compat reason as the category field above.
-var resolvedAt: Date?
+    /// When the person marked this item as returned or successfully
+    /// claimed under warranty — nil until then. This is what the
+    /// dashboard's lifetime "money protected" stat counts: an item only
+    /// contributes once someone has actually confirmed the outcome, not
+    /// just because its window happened to pass. Optional for the same
+    /// Codable back-compat reason as the category field above.
+    var resolvedAt: Date?
 
-/// The Gmail message ID this item was imported from, if it was added
-/// via the Gmail purchase scan rather than entered by hand. Used only
-/// to dedupe re-surfaced purchases across scans — a message that has
-/// already been imported (or dismissed) should not show up again as a
-/// "new" detected purchase. Optional for the same Codable back-compat
-/// reason as category and resolvedAt above; manually-added items will
-/// always have this as nil.
-var importedFromGmailMessageID: String?
+    /// The Gmail message ID this item was imported from, if it was added
+    /// via the Gmail purchase scan rather than entered by hand. Used only
+    /// to dedupe re-surfaced purchases across scans — a message that has
+    /// already been imported (or dismissed) should not show up again as a
+    /// "new" detected purchase. Optional for the same Codable back-compat
+    /// reason as category and resolvedAt above; manually-added items will
+    /// always have this as nil.
+    var importedFromGmailMessageID: String?
 
-var priceDisplay: String? {
-guard let priceCents else { return nil }
-let formatter = NumberFormatter()
-formatter.numberStyle = .currency
-formatter.currencyCode = Locale.current.currency?.identifier ?? "USD"
-return formatter.string(from: NSNumber(value: Double(priceCents) / 100.0))
-}
+    var priceDisplay: String? {
+        guard let priceCents else { return nil }
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = Locale.current.currency?.identifier ?? "USD"
+        return formatter.string(from: NSNumber(value: Double(priceCents) / 100.0))
+    }
 
-/// The single most urgent deadline on this item, if any — this is what
-/// the list row's status badge is driven by.
-var soonestDeadline: TrackedDeadline? {
-deadlines
-.filter { $0.status() != .expired }
-.sorted { $0.date < $1.date }
-.first
-?? deadlines.sorted { $0.date < $1.date }.first
-}
+    /// The single most urgent deadline on this item, if any — this is what
+    /// the list row's status badge is driven by.
+    var soonestDeadline: TrackedDeadline? {
+        deadlines
+            .filter { $0.status() != .expired }
+            .sorted { $0.date < $1.date }
+            .first
+            ?? deadlines.sorted { $0.date < $1.date }.first
+    }
 
-var overallStatus: ItemStatus {
-soonestDeadline?.status() ?? .active
-}
+    var overallStatus: ItemStatus {
+        soonestDeadline?.status() ?? .active
+    }
 }
