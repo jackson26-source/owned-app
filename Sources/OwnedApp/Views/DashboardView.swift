@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 
 struct DashboardView: View {
     @EnvironmentObject private var itemStore: ItemStore
@@ -31,6 +32,7 @@ struct DashboardView: View {
                         }
 
                         Section("By status") {
+                            statusChart
                             ForEach(StatusSummary.allCases) { status in
                                 statusRow(status)
                             }
@@ -38,6 +40,7 @@ struct DashboardView: View {
 
                         if !categoryBreakdown.isEmpty {
                             Section("By category") {
+                                categoryChart
                                 ForEach(categoryBreakdown, id: \.category) { entry in
                                     categoryRow(entry)
                                 }
@@ -93,6 +96,46 @@ struct DashboardView: View {
                 .stroke(Theme.border, lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    // MARK: - Charts
+
+    /// A donut chart giving the status breakdown a visual read at a
+    /// glance, alongside (not instead of) the counted rows below — dense
+    /// stacked number rows are a weak vehicle for fast comprehension;
+    /// color and proportion read faster than three lines of digits.
+    /// Colors match \`statusRow\` exactly so the chart and its legend
+    /// never disagree.
+    private var statusChart: some View {
+        Chart(StatusSummary.allCases) { status in
+            SectorMark(
+                angle: .value("Count", itemStore.items.filter { status.matches($0.overallStatus) }.count),
+                innerRadius: .ratio(0.62),
+                angularInset: 1.5
+            )
+            .foregroundStyle(status.color)
+            .cornerRadius(3)
+        }
+        .frame(height: 140)
+        .padding(.vertical, 4)
+    }
+
+    /// A horizontal bar chart for the category breakdown, so relative
+    /// sizes ("mostly electronics, a little of everything else") are
+    /// visible instantly instead of requiring a scan down a column of
+    /// numbers to compare them.
+    private var categoryChart: some View {
+        Chart(categoryBreakdown, id: \.category) { entry in
+            BarMark(
+                x: .value("Count", entry.count),
+                y: .value("Category", entry.category.label)
+            )
+            .foregroundStyle(Theme.accent)
+            .cornerRadius(4)
+        }
+        .frame(height: CGFloat(categoryBreakdown.count) * 28 + 16)
+        .chartXAxis(.hidden)
+        .padding(.vertical, 4)
     }
 
     // MARK: - Stats
@@ -214,7 +257,7 @@ private enum StatusSummary: CaseIterable, Identifiable {
         }
     }
 
-    /// Functional, not decorative — matches `StatusBadge`'s own color
+    /// Functional, not decorative — matches \`StatusBadge\`'s own color
     /// convention exactly: green only ever means "active and fine,"
     /// accent means "needs attention soon," and this expired row is the
     /// one place danger-red actually belongs, not the faded grey it used
