@@ -94,8 +94,13 @@ struct ItemDetailView: View {
                     Label("Preparing claim pack…", systemImage: "doc.richtext")
                         .foregroundStyle(Theme.textDim)
                 }
+
+                ShareLink(item: claimMessage) {
+                    Label("Share claim message", systemImage: "text.bubble")
+                }
+                .foregroundStyle(Theme.accent)
             } footer: {
-                Text("Bundles this item's details, deadlines, and receipt photo into a PDF you can attach to a return or warranty claim.")
+                Text("The claim pack bundles this item's details, deadlines, and receipt photo into a PDF. The claim message is a ready-to-send draft — fill in the blank and attach the pack.")
                     .foregroundStyle(Theme.textFaint)
             }
             .listRowBackground(Theme.panel)
@@ -160,6 +165,14 @@ struct ItemDetailView: View {
         return "Nice — marked as resolved"
     }
 
+    /// A ready-to-send return or warranty request, pre-filled with
+    /// everything Owned already knows about this item — see
+    /// ClaimPackGenerator.makeClaimMessage for why this exists as its own
+    /// share action alongside the PDF claim pack rather than folding into it.
+    private var claimMessage: String {
+        ClaimPackGenerator.makeClaimMessage(for: item, deadline: item.soonestDeadline)
+    }
+
     private func deadlineRow(_ deadline: TrackedDeadline) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -171,12 +184,9 @@ struct ItemDetailView: View {
                         .font(.caption)
                         .foregroundStyle(Theme.textDim)
                 }
-
                 Spacer()
-
                 StatusBadge(deadline: deadline)
             }
-
             if deadline.status() != .expired {
                 Button {
                     addToWallet(deadline)
