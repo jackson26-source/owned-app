@@ -107,6 +107,52 @@ enum ClaimPackGenerator {
     }
   }
 
+  /// Drafts the actual claim/return request message — the part that takes
+  /// the most mental effort once the paperwork itself is ready. The PDF
+  /// above bundles the receipt and deadline details into something to
+  /// attach; this drafts the words to send alongside it, pre-filled with
+  /// everything Owned already knows and a clearly-marked blank for the one
+  /// thing only the person filing the claim can supply: what's actually
+  /// wrong with the item, or why it's being returned.
+  static func makeClaimMessage(for item: TrackedItem, deadline: TrackedDeadline?) -> String {
+    let itemName = item.name.isEmpty ? "this item" : item.name
+    let retailer = item.retailer.isEmpty ? "your store" : item.retailer
+    let purchaseDate = item.purchaseDate.formatted(date: .long, time: .omitted)
+    let priceLine = item.priceDisplay.map { " for \($0)" } ?? ""
+
+    if deadline?.kind == .warranty {
+      let expiryLine = deadline.map { " The warranty runs through \($0.date.formatted(date: .long, time: .omitted))." } ?? ""
+      return """
+      Subject: Warranty claim — \(itemName)
+
+      Hello,
+
+      I'm writing to file a warranty claim for \(itemName), purchased from \(retailer) on \(purchaseDate)\(priceLine).\(expiryLine)
+
+      [Describe what's wrong with the item here.]
+
+      I've attached a claim pack with the purchase details and receipt. Please let me know what you need from me to move forward, and what the next steps are.
+
+      Thank you,
+      """
+    }
+
+    let closesLine = deadline.map { " The return window closes \($0.date.formatted(date: .long, time: .omitted))." } ?? ""
+    return """
+    Subject: Return request — \(itemName)
+
+    Hello,
+
+    I'd like to return \(itemName), purchased from \(retailer) on \(purchaseDate)\(priceLine).\(closesLine)
+
+    [Add your reason for the return here, if needed.]
+
+    I've attached a claim pack with the purchase details and receipt. Could you let me know the return process and refund timeline?
+
+    Thank you,
+    """
+  }
+
   private static func drawDivider(in context: CGContext, y: CGFloat, margin: CGFloat, width: CGFloat) -> CGFloat {
     context.setStrokeColor(UIColor.lightGray.cgColor)
     context.setLineWidth(0.5)
