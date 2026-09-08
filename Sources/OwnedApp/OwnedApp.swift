@@ -56,7 +56,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                                       .compactMap({ $0 as? UIWindowScene })
                                       .first?.windows.first(where: { $0.isKeyWindow })?.rootViewController
                                   else { return }
-                                  WalletPassService.shared.presentAddPass(for: item, deadline: deadline, from: root)
+                                  await WalletPassService.shared.presentAddPass(for: item, deadline: deadline, from: root)
                                   itemStore.markWalletPassAdded(itemID: item.id, deadlineID: deadline.id)
                      }
       }

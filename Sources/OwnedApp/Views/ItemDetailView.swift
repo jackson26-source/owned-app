@@ -189,7 +189,7 @@ struct ItemDetailView: View {
             }
             if deadline.status() != .expired {
                 Button {
-                    addToWallet(deadline)
+                    Task { await addToWallet(deadline) }
                 } label: {
                     Label("Add to Wallet", systemImage: "wallet.pass")
                         .font(.caption.weight(.medium))
@@ -200,12 +200,12 @@ struct ItemDetailView: View {
         .padding(.vertical, 2)
     }
 
-    private func addToWallet(_ deadline: TrackedDeadline) {
+    private func addToWallet(_ deadline: TrackedDeadline) async {
         guard let root = UIApplication.shared.connectedScenes
             .compactMap({ $0 as? UIWindowScene })
             .first?.windows.first(where: { $0.isKeyWindow })?.rootViewController
         else { return }
-        WalletPassService.shared.presentAddPass(for: item, deadline: deadline, from: root)
+        await WalletPassService.shared.presentAddPass(for: item, deadline: deadline, from: root)
         itemStore.markWalletPassAdded(itemID: item.id, deadlineID: deadline.id)
     }
 
