@@ -1,6 +1,10 @@
 import SwiftUI
 
 struct SettingsView: View {
+    @ObservedObject private var purchases = PurchaseService.shared
+    @State private var isRestoring = false
+    @State private var restoreError: String?
+
     var body: some View {
         NavigationStack {
             List {
@@ -17,15 +21,46 @@ struct SettingsView: View {
                 GmailConnectSection()
 
                 Section {
-                    LabeledContent("Version", value: "0.1.0")
+                    LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—")
+
+                    Button {
+                        restore()
+                    } label: {
+                        HStack {
+                            Text("Restore Purchases")
+                            if isRestoring {
+                                Spacer()
+                                ProgressView()
+                            }
+                        }
+                    }
+                    .disabled(isRestoring)
                 } header: {
                     Theme.sectionHeader("About")
+                } footer: {
+                    if let restoreError {
+                        Text(restoreError)
+                            .foregroundStyle(Theme.accent)
+                    }
                 }
                 .listRowBackground(Theme.panel)
             }
             .listRowSeparatorTint(Theme.border)
             .themedScrollBackground()
             .navigationTitle("Settings")
+        }
+    }
+
+    private func restore() {
+        restoreError = nil
+        isRestoring = true
+        Task {
+            defer { isRestoring = false }
+            do {
+                try await purchases.restore()
+            } catch {
+                restoreError = error.localizedDescription
+            }
         }
     }
 }
