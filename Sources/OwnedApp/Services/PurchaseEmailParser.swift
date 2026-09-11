@@ -202,9 +202,17 @@ enum PurchaseEmailParser {
             }
         }
 
+        // `\b` after the alternation is load-bearing: without it, "order"
+        // matches as a bare substring of "Ordered", stripping only
+        // "Order" and leaving the rest of the word stuck to the front of
+        // the "cleaned" subject - e.g. "Ordered 1 item: Electronics"
+        // became "ed 1 item: Electronics" and got saved as a real item's
+        // name. "order confirmation" is listed before "order" so a
+        // subject starting with that whole phrase strips all of it
+        // rather than stopping after just "order".
         let cleanedSubject = message.subject
             .replacingOccurrences(
-                of: #"(?i)^(your |thanks for )?(order|order confirmation|receipt)[:\-]?\s*"#,
+                of: #"(?i)^(your |thanks for )?(order confirmation|order|receipt)\b[:\-]?\s*"#,
                 with: "",
                 options: .regularExpression
             )
