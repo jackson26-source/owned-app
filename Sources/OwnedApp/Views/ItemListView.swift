@@ -60,6 +60,7 @@ private enum SortOption: String, CaseIterable, Identifiable, Hashable {
 struct ItemListView: View {
     @EnvironmentObject private var itemStore: ItemStore
     @State private var isPresentingAddItem = false
+    @State private var isPresentingGmailImport = false
     @State private var searchText = ""
     @State private var statusFilter: StatusFilter = .all
     @State private var categoryFilter: ItemCategory?
@@ -115,11 +116,7 @@ struct ItemListView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        isPresentingAddItem = true
-                    } label: {
-                        Label("Add", systemImage: "plus")
-                    }
+                    addMenu
                 }
                 ToolbarItem(placement: .secondaryAction) {
                     sortMenu
@@ -132,6 +129,54 @@ struct ItemListView: View {
             }
             .sheet(isPresented: $isPresentingAddItem) {
                 AddItemView()
+            }
+            .sheet(isPresented: $isPresentingGmailImport) {
+                gmailImportSheet
+            }
+        }
+    }
+
+    /// The "+" button was a plain shortcut straight to the manual form,
+    /// which buried "Add from Gmail" three taps deep in Settings even
+    /// though it's the whole point of Owned's automatic-tracking pitch.
+    /// A menu puts both entry points where a person actually looks for
+    /// "add" to happen, without duplicating the connect/scan/paywall
+    /// logic that already lives in GmailConnectSection.
+    private var addMenu: some View {
+        Menu {
+            Button {
+                isPresentingAddItem = true
+            } label: {
+                Label("Add manually", systemImage: "square.and.pencil")
+            }
+            Button {
+                isPresentingGmailImport = true
+            } label: {
+                Label("Add from Gmail", systemImage: "envelope")
+            }
+        } label: {
+            Label("Add", systemImage: "plus")
+        }
+    }
+
+    /// Reuses GmailConnectSection as-is (same paywall/connect/scan states
+    /// it already handles in Settings) rather than re-implementing the
+    /// Gmail flow here - this sheet is just that section given its own
+    /// modal home so it's reachable from the Add menu, not a second copy
+    /// of the logic.
+    private var gmailImportSheet: some View {
+        NavigationStack {
+            List {
+                GmailConnectSection()
+            }
+            .listRowSeparatorTint(Theme.border)
+            .themedScrollBackground()
+            .navigationTitle("Add from Gmail")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { isPresentingGmailImport = false }
+                }
             }
         }
     }
