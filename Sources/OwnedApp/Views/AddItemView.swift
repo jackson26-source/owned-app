@@ -3,6 +3,7 @@ import SwiftUI
 struct AddItemView: View {
     @EnvironmentObject private var itemStore: ItemStore
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var purchases = PurchaseService.shared
 
     @State private var name = ""
     @State private var retailer = ""
@@ -18,6 +19,10 @@ struct AddItemView: View {
 
     @State private var isPresentingCamera = false
     @State private var capturedImage: UIImage?
+
+    /// Presented instead of saving once the free tier's lifetime item cap
+    /// is hit - see `PurchaseService.freeItemLimit`.
+    @State private var isPresentingPaywall = false
 
     var body: some View {
         NavigationStack {
@@ -95,10 +100,24 @@ struct AddItemView: View {
                 }
                 .ignoresSafeArea()
             }
+            .sheet(isPresented: $isPresentingPaywall) {
+                PaywallSheet()
+            }
         }
     }
 
     private func save() {
+        // Lifetime cap on free manual tracking - counts every item ever
+        // created, not just currently-unresolved ones, so resolving an
+        // item never reopens a free "slot." Once Pro is unlocked this
+        // never triggers again. Show the paywall instead of saving; the
+        // form's state is preserved, so tapping Save again after
+        // unlocking goes straight through.
+        if itemStore.items.count >= PurchaseService.freeItemLimit && !purchases.hasUnlockedPro {
+            isPresentingPaywall = true
+            return
+        }
+
         var deadlines: [TrackedDeadline] = []
 
         if trackReturnWindow, let returnDate = Calendar.current.date(byAdding: .day, value: returnWindowDays, to: purchaseDate) {
