@@ -36,20 +36,22 @@ struct DetectedPurchaseReviewView: View {
                             .padding(.top, 2)
 
                         VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text(purchase.itemName)
-                                    .font(.body.weight(.medium))
-                                    .foregroundStyle(Theme.textPrimary)
-                                if !purchase.itemNameIsConfident {
-                                    Text("check this")
-                                        .font(.caption2.weight(.semibold))
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(Theme.textFaint.opacity(0.2))
-                                        .foregroundStyle(Theme.textDim)
-                                        .clipShape(Capsule())
-                                }
+                            Text(purchase.itemName)
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(Theme.textPrimary)
+
+                            if !purchase.itemNameIsConfident {
+                                // Was a small gray "check this" capsule -
+                                // easy to miss, which is exactly how a
+                                // parser fallback like "ed 1 item:
+                                // Electronics" got through to a real
+                                // device. This needs to actually stop a
+                                // person, not just hint.
+                                Label("Couldn't read a real item name — check before adding", systemImage: "exclamationmark.triangle.fill")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Theme.danger)
                             }
+
                             Text(purchase.retailer)
                                 .font(.caption)
                                 .foregroundStyle(Theme.textDim)
@@ -64,6 +66,13 @@ struct DetectedPurchaseReviewView: View {
                 }
                 .buttonStyle(.plain)
                 .listRowBackground(Theme.panel)
+                .overlay(alignment: .leading) {
+                    if !purchase.itemNameIsConfident {
+                        Rectangle()
+                            .fill(Theme.danger)
+                            .frame(width: 3)
+                    }
+                }
             }
             .themedScrollBackground()
             .navigationTitle("Review purchases")
