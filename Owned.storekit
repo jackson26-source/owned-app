@@ -1,0 +1,33 @@
+{
+  "identifier" : "9DDA0417",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "4.99",
+      "familyShareable" : false,
+      "internalID" : "A2CD30DF",
+      "localizations" : [
+        {
+          "description" : "Unlocks automatic Gmail purchase tracking - scans receipt emails for return windows and warranties, entirely on-device. Test-only price; the real price is set in App Store Connect.",
+          "displayName" : "Automatic Tracking",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "dev.macless.owned.automatic_tracking",
+      "referenceName" : "Automatic Tracking",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 2,
+    "minor" : 0
+  }
+}
