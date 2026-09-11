@@ -41,12 +41,16 @@ struct StatusBadge: View {
     }
 
     /// Functional, not decorative: green only ever means "active and
-    /// fine," accent means "needs attention soon," and the expired case
-    /// is drawn as a stamp above rather than through this color at all.
+    /// fine," `Theme.warning` gold means "needs attention soon," and the
+    /// expired case is drawn as a stamp above rather than through this
+    /// color at all. Uses `Theme.warning` rather than `Theme.accent` so
+    /// this status color stays fixed even as the brand accent changes —
+    /// `accent` and `success` are the same green now, and `expiringSoon`
+    /// needs a color that's neither of those.
     private func color(for status: ItemStatus) -> Color {
         switch status {
         case .active: return Theme.success
-        case .expiringSoon: return Theme.accent
+        case .expiringSoon: return Theme.warning
         case .expired: return Theme.danger
         }
     }
