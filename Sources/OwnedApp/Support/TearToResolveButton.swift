@@ -21,12 +21,12 @@ struct TearToResolveButton: View {
     var body: some View {
         ZStack {
             HStack(spacing: gap) {
-                half(icon: "scissors")
+                half(icon: "scissors", side: .leading)
                     .rotationEffect(
                         .degrees(-tearProgress * 5),
                         anchor: .trailing
                     )
-                half(icon: "checkmark")
+                half(icon: "checkmark", side: .trailing)
                     .rotationEffect(
                         .degrees(tearProgress * 5),
                         anchor: .leading
@@ -89,7 +89,16 @@ struct TearToResolveButton: View {
         }
     }
 
-    private func half(icon: String) -> some View {
+    /// Which edge of the control this half sits on — used only to decide
+    /// which outer corners get rounded, so the two halves still read as
+    /// one continuous pill at rest instead of two independently-rounded
+    /// rectangles meeting in the middle (that seam is what made this
+    /// look broken/"fuckled" rather than like a single control).
+    private enum Side {
+        case leading, trailing
+    }
+
+    private func half(icon: String, side: Side) -> some View {
         HStack {
             Spacer(minLength: 0)
             Image(systemName: icon)
@@ -100,7 +109,11 @@ struct TearToResolveButton: View {
         .frame(maxWidth: .infinity)
         .frame(height: 52)
         .background(Theme.accent)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(
+            side == .leading
+                ? UnevenRoundedRectangle(topLeadingRadius: 10, bottomLeadingRadius: 10, bottomTrailingRadius: 0, topTrailingRadius: 0)
+                : UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0, bottomTrailingRadius: 10, topTrailingRadius: 10)
+        )
     }
 }
 
