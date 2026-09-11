@@ -84,5 +84,11 @@ schemes:
         - OwnedUITests
     run:
       config: Debug
+      # Local-only StoreKit testing (purchase/restore/cancel/"already
+      # purchased") in the simulator via Owned.storekit, with zero App
+      # Store Connect dependency. Only affects the Run action, so this
+      # has no effect on testflight.yml's archive/export, which uses the
+      # separate `archive` scheme action below.
+      storeKitConfiguration: Owned.storekit
     archive:
       config: Release
