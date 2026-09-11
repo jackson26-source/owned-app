@@ -98,15 +98,19 @@ struct TimelineView: View {
     }
 
     /// Functional, not decorative, matching `StatusBadge`'s convention:
-    /// active is safe-green, expiring-soon gets the accent's "pay
-    /// attention" tone, and expired gets danger-red — the same
+    /// active is safe-green, expiring-soon gets `Theme.warning`'s "pay
+    /// attention" gold, and expired gets danger-red — the same
     /// three-way scale used everywhere else in the app (StatusBadge,
     /// DashboardView) so urgency reads identically on every tab
-    /// instead of each screen inventing its own color language.
+    /// instead of each screen inventing its own color language. Uses
+    /// `Theme.warning` rather than `Theme.accent` so this status color
+    /// stays fixed even as the brand accent changes — `accent` and
+    /// `success` are the same green now, and `expiringSoon` needs a
+    /// color that's neither of those.
     private func colorForStatus(_ status: ItemStatus) -> Color {
         switch status {
         case .active: return Theme.success
-        case .expiringSoon: return Theme.accent
+        case .expiringSoon: return Theme.warning
         case .expired: return Theme.danger
         }
     }
