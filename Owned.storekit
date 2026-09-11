@@ -5,18 +5,18 @@
   ],
   "products" : [
     {
-      "displayPrice" : "4.99",
+      "displayPrice" : "5.99",
       "familyShareable" : false,
       "internalID" : "A2CD30DF",
       "localizations" : [
         {
-          "description" : "Unlocks automatic Gmail purchase tracking - scans receipt emails for return windows and warranties, entirely on-device. Test-only price; the real price is set in App Store Connect.",
-          "displayName" : "Automatic Tracking",
+          "description" : "Unlimited tracked items and automatic Gmail purchase tracking - scans receipt emails for return windows and warranties, entirely on-device. One-time purchase, no subscription.",
+          "displayName" : "Owned Pro",
           "locale" : "en_US"
         }
       ],
-      "productID" : "dev.macless.owned.automatic_tracking",
-      "referenceName" : "Automatic Tracking",
+      "productID" : "dev.macless.owned.pro",
+      "referenceName" : "Owned Pro",
       "type" : "NonConsumable"
     }
   ],
