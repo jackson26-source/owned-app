@@ -3,7 +3,7 @@ import UIKit
 
 /// Owned's shared visual identity, carried over from the marketing site
 /// at owned.macless.dev: a warm paper background, a serif headline face,
-/// small monospace "eyebrow" labels, and a single rust accent color used
+/// small monospace "eyebrow" labels, and a single forest-green accent color used
 /// everywhere something needs to stand out. Defined once here so every
 /// screen in the app draws from the same palette instead of drifting
 /// toward SwiftUI's default blue-and-white system look.
@@ -48,13 +48,14 @@ enum Theme {
     )
 
     /// The one accent color, used everywhere something needs to stand out:
-    /// links, buttons, the selected tab, the hero stat's number. Matches
-    /// the homepage's --accent token exactly (a warm rust/terracotta,
-    /// deliberately not the default iOS blue). Brightened a bit in dark
-    /// mode so it still reads clearly against a dark ground.
+    /// links, buttons, the selected tab, the hero stat's number. A deep
+    /// forest green — the direction Jackson picked from the redesign
+    /// comps — replacing the original site's rust/terracotta. Brightened
+    /// a bit in dark mode so it still reads clearly against a dark
+    /// ground.
     static let accent = Color(
-        light: UIColor(red: 0.659, green: 0.275, blue: 0.118, alpha: 1), // #A8461E
-        dark: UIColor(red: 0.831, green: 0.408, blue: 0.243, alpha: 1) // #D4683E
+        light: UIColor(red: 0.200, green: 0.314, blue: 0.247, alpha: 1), // #33503F
+        dark: UIColor(red: 0.435, green: 0.627, blue: 0.522, alpha: 1) // #6FA085
     )
 
     /// Text drawn on top of a solid `accent` fill (the pill button label,
@@ -65,15 +66,29 @@ enum Theme {
         dark: UIColor(red: 0.086, green: 0.078, blue: 0.067, alpha: 1)
     )
 
-    /// Functional "safe" green — reserved for states that actually mean
-    /// something is fine or finished: an active, un-expired deadline, or
-    /// a confirmed return/claim. Deliberately separate from `accent`
-    /// (the app's brand color, not a status signal) and muted toward the
-    /// same warm palette as everything else rather than a saturated
-    /// system green, so it reads as "this app's green," not iOS's.
-    static let success = Color(
-        light: UIColor(red: 0.247, green: 0.420, blue: 0.200, alpha: 1), // #3F6B33
-        dark: UIColor(red: 0.561, green: 0.702, blue: 0.478, alpha: 1) // #8FB37A
+    /// Functional "safe" green — states that mean something is fine or
+    /// finished: an active, un-expired deadline, or a confirmed
+    /// return/claim. Now the same color as `accent`: once the brand
+    /// color itself became green, keeping a second, slightly-different
+    /// green for "safe" just meant two greens that looked like a mistake
+    /// next to each other. Unifying them matches how the approved
+    /// redesign comp actually used its accent color for the "Active"
+    /// tile. If `accent` ever moves away from green again, split this
+    /// back out into its own token rather than dragging `accent` along.
+    static let success = accent
+
+    /// Functional "caution" gold/ochre — reserved for the one state that
+    /// needs attention soon but isn't bad news yet: a deadline expiring
+    /// within the warning window. This token exists because `accent`
+    /// used to double as both the brand color and this status signal;
+    /// that worked when accent was rust (a color `success`'s green never
+    /// touched), but once accent became green it would have collided
+    /// with `success` and made "your warranty is about to expire" read
+    /// as "you're safe." Matches the gold used for the "Soon" tile in
+    /// the approved redesign comp.
+    static let warning = Color(
+        light: UIColor(red: 0.659, green: 0.475, blue: 0.122, alpha: 1), // #A8791F
+        dark: UIColor(red: 0.851, green: 0.663, blue: 0.290, alpha: 1) // #D9A94A
     )
 
     /// Functional "danger" red — reserved for the one state that's
@@ -82,7 +97,7 @@ enum Theme {
     /// same muted grey used for "unimportant" — the opposite of what an
     /// expired return window or warranty should signal. A brick-red ink
     /// tone, not a saturated system red, to stay in the same warm family
-    /// as `success` and `accent`.
+    /// as `success`, `warning`, and `accent`.
     static let danger = Color(
         light: UIColor(red: 0.604, green: 0.200, blue: 0.141, alpha: 1), // #9A3324
         dark: UIColor(red: 0.851, green: 0.482, blue: 0.404, alpha: 1) // #D97B67
@@ -216,7 +231,7 @@ enum Theme {
     // MARK: - App-wide chrome
 
     /// Configures UIKit's appearance proxies so every navigation bar, tab
-    /// bar, and list in the app picks up the same paper-and-rust identity
+    /// bar, and list in the app picks up the same paper-and-accent identity
     /// as the marketing site, without having to restyle each screen by
     /// hand. Call once, before the first view renders.
     static func applyAppearance() {
