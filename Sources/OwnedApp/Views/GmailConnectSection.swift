@@ -20,39 +20,8 @@ struct GmailConnectSection: View {
 
     var body: some View {
         Section {
-            if !purchases.hasUnlockedAutoTracking {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Automatic tracking")
-                            .font(.body.weight(.medium))
-                            .foregroundStyle(Theme.textPrimary)
-                        Spacer()
-                        Text("Beta")
-                            .font(.caption2.weight(.semibold))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(Theme.accent.opacity(0.15))
-                            .foregroundStyle(Theme.accent)
-                            .clipShape(Capsule())
-                    }
-                    Text("Connect your Gmail so purchase confirmations get scanned for return windows and warranties automatically. Reads receipt emails only - nothing is sent anywhere, parsing happens entirely on this device.")
-                        .font(.caption)
-                        .foregroundStyle(Theme.textDim)
-                }
-                .padding(.vertical, 4)
-
-                Button {
-                    purchase()
-                } label: {
-                    HStack {
-                        Text(purchases.product.map { "Unlock — \($0.displayPrice)" } ?? "Unlock")
-                        if isWorking {
-                            Spacer()
-                            ProgressView()
-                        }
-                    }
-                }
-                .disabled(isWorking || purchases.product == nil)
+            if !purchases.hasUnlockedPro {
+                PaywallView()
             } else if oauth.isConnected {
                 Label("Gmail connected", systemImage: "checkmark.seal")
                     .font(.body.weight(.medium))
@@ -122,22 +91,6 @@ struct GmailConnectSection: View {
                 for purchase in accepted {
                     itemStore.add(purchase.asTrackedItem())
                 }
-            }
-        }
-    }
-
-    private func purchase() {
-        errorMessage = nil
-        isWorking = true
-        Task {
-            defer { isWorking = false }
-            do {
-                try await purchases.purchase()
-            } catch PurchaseService.PurchaseError.userCancelled {
-                // Cancelling isn't a failure - leave the paywall state
-                // exactly as it was, with no error shown.
-            } catch {
-                errorMessage = error.localizedDescription
             }
         }
     }
