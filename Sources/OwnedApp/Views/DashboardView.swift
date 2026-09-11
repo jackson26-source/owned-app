@@ -259,13 +259,17 @@ private enum StatusSummary: CaseIterable, Identifiable {
 
     /// Functional, not decorative — matches \`StatusBadge\`'s own color
     /// convention exactly: green only ever means "active and fine,"
-    /// accent means "needs attention soon," and this expired row is the
+    /// gold means "needs attention soon," and this expired row is the
     /// one place danger-red actually belongs, not the faded grey it used
-    /// to share with "nothing to see here."
+    /// to share with "nothing to see here." Uses `Theme.warning` rather
+    /// than `Theme.accent` specifically so this status color stays fixed
+    /// even as the app's brand accent changes — `accent` and `success`
+    /// are the same green now, and `expiringSoon` needs a color that's
+    /// neither of those.
     var color: Color {
         switch self {
         case .active: return Theme.success
-        case .expiringSoon: return Theme.accent
+        case .expiringSoon: return Theme.warning
         case .expired: return Theme.danger
         }
     }
