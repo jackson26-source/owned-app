@@ -42,10 +42,15 @@ struct UrgentItemStrip: View {
 
     private var status: ItemStatus { deadline.status() }
 
+    /// Matches `StatusBadge` and `DashboardView`'s color convention:
+    /// `Theme.warning` rather than `Theme.accent` for expiringSoon, so
+    /// this status color stays fixed even as the brand accent changes —
+    /// `accent` and `success` are the same green now, and `expiringSoon`
+    /// needs a color that's neither of those.
     private var color: Color {
         switch status {
         case .active: return Theme.success
-        case .expiringSoon: return Theme.accent
+        case .expiringSoon: return Theme.warning
         case .expired: return Theme.danger
         }
     }
