@@ -10,6 +10,7 @@ struct TimelineView: View {
     @EnvironmentObject private var itemStore: ItemStore
     @State private var includeExpired = false
     @State private var isPresentingAddItem = false
+    @State private var isPresentingGmailImport = false
 
     var body: some View {
         NavigationStack {
@@ -20,7 +21,9 @@ struct TimelineView: View {
                         title: "Nothing on the clock",
                         message: includeExpired ? "No deadlines tracked yet." : "No upcoming deadlines. Toggle \u{201C}Show expired\u{201D} to see past ones.",
                         actionTitle: itemStore.items.isEmpty ? "Add a purchase" : nil,
-                        action: itemStore.items.isEmpty ? { isPresentingAddItem = true } : nil
+                        action: itemStore.items.isEmpty ? { isPresentingAddItem = true } : nil,
+                        secondaryActionTitle: itemStore.items.isEmpty ? "Add from Gmail" : nil,
+                        secondaryAction: itemStore.items.isEmpty ? { isPresentingGmailImport = true } : nil
                     )
                 } else {
                     List(entries) { entry in
@@ -53,6 +56,9 @@ struct TimelineView: View {
             }
             .sheet(isPresented: $isPresentingAddItem) {
                 AddItemView()
+            }
+            .sheet(isPresented: $isPresentingGmailImport) {
+                GmailImportSheet()
             }
         }
     }
