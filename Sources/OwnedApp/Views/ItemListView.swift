@@ -131,7 +131,7 @@ struct ItemListView: View {
                 AddItemView()
             }
             .sheet(isPresented: $isPresentingGmailImport) {
-                gmailImportSheet
+                GmailImportSheet()
             }
         }
     }
@@ -140,8 +140,9 @@ struct ItemListView: View {
     /// which buried "Add from Gmail" three taps deep in Settings even
     /// though it's the whole point of Owned's automatic-tracking pitch.
     /// A menu puts both entry points where a person actually looks for
-    /// "add" to happen, without duplicating the connect/scan/paywall
-    /// logic that already lives in GmailConnectSection.
+    /// "add" to happen. Both this menu and the empty state below present
+    /// the identical `GmailImportSheet`, so there's exactly one place the
+    /// connect/scan/paywall logic lives, not a copy per entry point.
     private var addMenu: some View {
         Menu {
             Button {
@@ -156,28 +157,6 @@ struct ItemListView: View {
             }
         } label: {
             Label("Add", systemImage: "plus")
-        }
-    }
-
-    /// Reuses GmailConnectSection as-is (same paywall/connect/scan states
-    /// it already handles in Settings) rather than re-implementing the
-    /// Gmail flow here - this sheet is just that section given its own
-    /// modal home so it's reachable from the Add menu, not a second copy
-    /// of the logic.
-    private var gmailImportSheet: some View {
-        NavigationStack {
-            List {
-                GmailConnectSection()
-            }
-            .listRowSeparatorTint(Theme.border)
-            .themedScrollBackground()
-            .navigationTitle("Add from Gmail")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { isPresentingGmailImport = false }
-                }
-            }
         }
     }
 
@@ -299,7 +278,9 @@ private var sortMenu: some View {
             title: "Nothing tracked yet",
             message: "Add a purchase to track its return window or warranty.",
             actionTitle: "Add a purchase",
-            action: { isPresentingAddItem = true }
+            action: { isPresentingAddItem = true },
+            secondaryActionTitle: "Add from Gmail",
+            secondaryAction: { isPresentingGmailImport = true }
         )
     }
 
