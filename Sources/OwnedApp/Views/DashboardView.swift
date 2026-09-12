@@ -4,6 +4,7 @@ import Charts
 struct DashboardView: View {
     @EnvironmentObject private var itemStore: ItemStore
     @State private var isPresentingAddItem = false
+    @State private var isPresentingGmailImport = false
 
     var body: some View {
         NavigationStack {
@@ -14,7 +15,9 @@ struct DashboardView: View {
                         title: "Nothing to show yet",
                         message: "Add a purchase to see your tracking stats here.",
                         actionTitle: "Add a purchase",
-                        action: { isPresentingAddItem = true }
+                        action: { isPresentingAddItem = true },
+                        secondaryActionTitle: "Add from Gmail",
+                        secondaryAction: { isPresentingGmailImport = true }
                     )
                 } else {
                     List {
@@ -62,6 +65,9 @@ struct DashboardView: View {
             .navigationTitle("Dashboard")
             .sheet(isPresented: $isPresentingAddItem) {
                 AddItemView()
+            }
+            .sheet(isPresented: $isPresentingGmailImport) {
+                GmailImportSheet()
             }
         }
     }
