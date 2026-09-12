@@ -9,13 +9,20 @@ import SwiftUI
 /// the same Georgia serif used for nav titles and the Dashboard hero stat,
 /// and offers an optional primary-action pill button so the empty state
 /// isn't just an explanation — it's an invitation to do the one thing that
-/// fixes it.
+/// fixes it. An optional secondary action sits below the pill as a plain
+/// text link — for "Add a purchase" specifically, that's "Add from Gmail",
+/// so the very first screen someone with an empty account ever sees offers
+/// the same choice the Items toolbar's Add menu does, instead of funneling
+/// everyone through manual entry until they happen to discover Gmail
+/// import elsewhere.
 struct EmptyStateView: View {
     let icon: String
     let title: String
     let message: String
     var actionTitle: String?
     var action: (() -> Void)?
+    var secondaryActionTitle: String?
+    var secondaryAction: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 20) {
@@ -41,6 +48,12 @@ struct EmptyStateView: View {
                 Button(actionTitle, action: action)
                     .buttonStyle(.pill)
                     .padding(.top, 4)
+            }
+
+            if let secondaryActionTitle, let secondaryAction {
+                Button(secondaryActionTitle, action: secondaryAction)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Theme.accent)
             }
 
             Spacer(minLength: 0)
@@ -75,7 +88,9 @@ struct EmptyStateView: View {
         title: "Nothing tracked yet",
         message: "Add a purchase to track its return window or warranty.",
         actionTitle: "Add a purchase",
-        action: {}
+        action: {},
+        secondaryActionTitle: "Add from Gmail",
+        secondaryAction: {}
     )
 }
 
